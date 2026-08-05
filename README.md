@@ -108,6 +108,10 @@ returns a tool-level error (visible to the agent) rather than crashing if
 
 ## Development
 
+Common dev commands are also available as `make` targets — run `make help` for
+the full list (build, test, vet, fmt, check, e2e, clean). The Makefile only wraps
+the raw commands documented below; either approach works.
+
 ### Project layout
 
 ```
