@@ -2,7 +2,60 @@
  *
  * T01 shipped the bare shell. T02 adds the search toolbar + table rendering
  * styling. T03 adds the unsandboxed detail view + Back button styling.
- * S04-T02 adds the #live-status SSE connection indicator. */
+ * S04-T02 adds the #live-status SSE connection indicator.
+ *
+ * Dark mode: every themeable color lives in a CSS custom property under
+ * :root (light values, the default) with a [data-theme="dark"] override
+ * block redefining the same variables. app.js is the single source of
+ * truth for *which* value of data-theme is active (stored preference ->
+ * OS prefers-color-scheme -> light) — this file only supplies the two
+ * palettes. The #detail-frame iframe's CONTENT is never themed here: it
+ * renders agent-authored HTML unsandboxed (R006), so only the iframe's own
+ * border/background chrome (not its document) is covered by these vars. */
+
+:root {
+  --bg: #fafafa;
+  --fg: #1a1a1a;
+  --surface: #fff;
+  --surface-alt: #f0f0f0;
+  --surface-hover: #f5f9ff;
+  --border: #ccc;
+  --border-subtle: #e5e5e5;
+  --muted: #666;
+  --accent: #4a90d9;
+  --accent-ring: rgba(74, 144, 217, 0.2);
+  --status-connecting-fg: #7a5b00;
+  --status-connecting-bg: #fff6e0;
+  --status-live-fg: #0a6b2a;
+  --status-live-bg: #e5f7ea;
+  --status-reconnecting-fg: #b00020;
+  --status-reconnecting-bg: #fde7e9;
+  --error-fg: #b00020;
+  --error-bg: #fde7e9;
+  --error-border: #f3b6ba;
+}
+
+[data-theme="dark"] {
+  --bg: #16181d;
+  --fg: #e8e8e8;
+  --surface: #1f2229;
+  --surface-alt: #262a33;
+  --surface-hover: #232838;
+  --border: #3a3f4a;
+  --border-subtle: #2b2f38;
+  --muted: #9a9fa8;
+  --accent: #5aa3f0;
+  --accent-ring: rgba(90, 163, 240, 0.3);
+  --status-connecting-fg: #e0b84d;
+  --status-connecting-bg: #3a3320;
+  --status-live-fg: #5fd489;
+  --status-live-bg: #16321f;
+  --status-reconnecting-fg: #f2879a;
+  --status-reconnecting-bg: #3a1a20;
+  --error-fg: #f2879a;
+  --error-bg: #3a1a20;
+  --error-border: #5c2732;
+}
 
 * {
   box-sizing: border-box;
@@ -11,9 +64,10 @@
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  color: #1a1a1a;
-  background: #fafafa;
+  color: var(--fg);
+  background: var(--bg);
   line-height: 1.5;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 #app {
@@ -23,7 +77,7 @@ body {
 }
 
 header h1 {
-  margin: 0 0 1rem;
+  margin: 0;
   font-size: 1.5rem;
 }
 
@@ -40,9 +94,10 @@ header h1 {
   padding: 0.5rem 0.75rem;
   font: inherit;
   color: inherit;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border);
   border-radius: 4px;
-  background: #fff;
+  background: var(--surface);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 /* S04: SSE connection status. Color + label change with data-state so the
@@ -62,24 +117,24 @@ header h1 {
 }
 
 #live-status[data-state="connecting"] {
-  color: #7a5b00;
-  background: #fff6e0;
+  color: var(--status-connecting-fg);
+  background: var(--status-connecting-bg);
 }
 
 #live-status[data-state="live"] {
-  color: #0a6b2a;
-  background: #e5f7ea;
+  color: var(--status-live-fg);
+  background: var(--status-live-bg);
 }
 
 #live-status[data-state="reconnecting"] {
-  color: #b00020;
-  background: #fde7e9;
+  color: var(--status-reconnecting-fg);
+  background: var(--status-reconnecting-bg);
 }
 
 #search:focus {
   outline: none;
-  border-color: #4a90d9;
-  box-shadow: 0 0 0 2px rgba(74, 144, 217, 0.2);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-ring);
 }
 
 /* Visible-label fallback for screen readers; the search has a placeholder. */
@@ -96,14 +151,14 @@ header h1 {
 }
 
 .empty {
-  color: #666;
+  color: var(--muted);
   font-style: italic;
 }
 
 .error {
-  color: #b00020;
-  background: #fde7e9;
-  border: 1px solid #f3b6ba;
+  color: var(--error-fg);
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
   border-radius: 4px;
   padding: 0.75rem 1rem;
 }
@@ -117,12 +172,12 @@ header h1 {
 #documents-table td {
   text-align: left;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid var(--border-subtle);
   vertical-align: top;
 }
 
 #documents-table th {
-  background: #f0f0f0;
+  background: var(--surface-alt);
   font-weight: 600;
 }
 
@@ -133,11 +188,11 @@ header h1 {
 }
 
 #documents-table tbody tr:hover {
-  background: #f5f9ff;
+  background: var(--surface-hover);
 }
 
 #documents-table tbody tr:focus {
-  outline: 2px solid #4a90d9;
+  outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
@@ -165,24 +220,42 @@ header h1 {
   margin-bottom: 0.75rem;
 }
 
-#back-button {
+#back-button,
+#theme-toggle {
   font: inherit;
   padding: 0.4rem 0.85rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border);
   border-radius: 4px;
-  background: #fff;
-  color: #1a1a1a;
+  background: var(--surface);
+  color: var(--fg);
   cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-#back-button:hover {
-  background: #f0f0f0;
+#back-button:hover,
+#theme-toggle:hover {
+  background: var(--surface-alt);
 }
 
-#back-button:focus {
+#back-button:focus,
+#theme-toggle:focus {
   outline: none;
-  border-color: #4a90d9;
-  box-shadow: 0 0 0 2px rgba(74, 144, 217, 0.2);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-ring);
+}
+
+/* Toggle sits in the header, visible from both table and detail views. */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+#theme-toggle {
+  font-size: 0.9rem;
+  white-space: nowrap;
 }
 
 /* The iframe renders the document's raw HTML full-page, unsandboxed (no
@@ -193,7 +266,11 @@ header h1 {
   flex: 1 1 auto;
   width: 100%;
   min-height: 75vh;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--border-subtle);
   border-radius: 4px;
-  background: #fff;
+  /* Chrome only: this background shows only until the iframe's own
+   * document paints. The iframe's CONTENT is never themed (R006 — raw,
+   * unsandboxed agent HTML renders as authored, with no CSS injection). */
+  background: var(--surface);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
