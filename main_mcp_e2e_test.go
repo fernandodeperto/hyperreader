@@ -40,7 +40,7 @@ import (
 //     (a stray byte on mcp's stdout would corrupt the JSON-RPC framing
 //     that this very test depends on to talk to it at all).
 func TestMCPSubprocess(t *testing.T) {
-	bin := buildHTMLMCPBinary(t)
+	bin := buildHyperReaderBinary(t)
 
 	t.Run("success: send_html forwards through real subprocesses to serve", func(t *testing.T) {
 		dataDir := t.TempDir()
@@ -110,22 +110,22 @@ func TestMCPSubprocess(t *testing.T) {
 		if !strings.Contains(text, strconv.Itoa(port)) {
 			t.Errorf("result text %q does not name the unreachable port %d", text, port)
 		}
-		if !strings.Contains(text, "html-mcp serve") {
-			t.Errorf("result text %q does not tell the agent to start `html-mcp serve`", text)
+		if !strings.Contains(text, "hyperreader serve") {
+			t.Errorf("result text %q does not tell the agent to start `hyperreader serve`", text)
 		}
 		t.Logf("expected failure result: %s", text)
 	})
 }
 
-// buildHTMLMCPBinary compiles the html-mcp binary once into a temp dir and
+// buildHyperReaderBinary compiles the hyperreader binary once into a temp dir and
 // returns its path. Building the real binary (rather than reusing the test
 // binary) is what makes this an honest proof of the shipped CLI: it
 // exercises main()'s actual subcommand dispatch, flag parsing, and the
 // stdout-purity contract exactly as a real agent's MCP client would see it.
-func buildHTMLMCPBinary(t *testing.T) string {
+func buildHyperReaderBinary(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	bin := filepath.Join(dir, "html-mcp")
+	bin := filepath.Join(dir, "hyperreader")
 	if runtime.GOOS == "windows" {
 		bin += ".exe"
 	}

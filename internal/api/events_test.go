@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fmendonca/html-mcp/internal/storage"
+	"github.com/fmendonca/hyperreader/internal/storage"
 )
 
 // newEventsTestServer opens a real storage.Store against a temp dir, builds

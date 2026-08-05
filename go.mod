@@ -1,4 +1,4 @@
-module github.com/fmendonca/html-mcp
+module github.com/fmendonca/hyperreader
 
 go 1.26.4
 

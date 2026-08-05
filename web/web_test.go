@@ -28,7 +28,7 @@ func TestHandler_ServesIndex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read body: %v", err)
 	}
-	if !strings.Contains(string(body), "<title>html-mcp</title>") {
+	if !strings.Contains(string(body), "<title>HyperReader</title>") {
 		t.Fatalf("GET / body does not contain the expected <title>; got: %s", body)
 	}
 }
@@ -43,8 +43,8 @@ func TestHandler_ServesAssets(t *testing.T) {
 		wantPrefix  string
 		wantSnippet string
 	}{
-		{"/app.js", "text/javascript", "html-mcp"},
-		{"/app.css", "text/css", "html-mcp"},
+		{"/app.js", "text/javascript", "HyperReader"},
+		{"/app.css", "text/css", "HyperReader"},
 	}
 	for _, c := range cases {
 		req := httptest.NewRequest(http.MethodGet, c.path, nil)
@@ -109,12 +109,12 @@ func TestHandler_TableAndSearchSurfaces(t *testing.T) {
 	// that search hits the same endpoint with ?q=.
 	js := serveBody(t, "/app.js")
 	for _, want := range []string{
-		`/api/documents`, // list/search endpoint
-		`?q=`,             // FTS5 search-param encoding
-		`encodeURIComponent`, // query is URL-encoded
-		`AbortController`, // last-write-wins guard for fast typing
+		`/api/documents`,           // list/search endpoint
+		`?q=`,                      // FTS5 search-param encoding
+		`encodeURIComponent`,       // query is URL-encoded
+		`AbortController`,          // last-write-wins guard for fast typing
 		`addEventListener("input"`, // debounced search input handler
-		`textContent`, // rows built via textContent (no innerHTML injection)
+		`textContent`,              // rows built via textContent (no innerHTML injection)
 	} {
 		if !strings.Contains(js, want) {
 			t.Errorf("app.js missing %q", want)
@@ -153,11 +153,11 @@ func TestHandler_NewTabSurfaces(t *testing.T) {
 	// with _blank, and row activation via click + keydown delegation.
 	js := serveBody(t, "/app.js")
 	for _, want := range []string{
-		`/content`,                  // GET /api/documents/{id}/content
-		`window.open`,              // opens the content endpoint in a new tab
-		`_blank`,                   // target is a new tab, not in-app
-		`encodeURIComponent`,       // id is URL-encoded into the path
-		`addEventListener("click"`,  // row click delegation
+		`/content`,                   // GET /api/documents/{id}/content
+		`window.open`,                // opens the content endpoint in a new tab
+		`_blank`,                     // target is a new tab, not in-app
+		`encodeURIComponent`,         // id is URL-encoded into the path
+		`addEventListener("click"`,   // row click delegation
 		`addEventListener("keydown"`, // row keyboard activation (Enter/Space)
 	} {
 		if !strings.Contains(js, want) {
@@ -191,14 +191,14 @@ func TestHandler_LiveUpdateSurfaces(t *testing.T) {
 
 	js := serveBody(t, "/app.js")
 	for _, want := range []string{
-		`/api/events`,                // SSE subscribe endpoint
-		`EventSource`,                // native browser streaming client
+		`/api/events`,                 // SSE subscribe endpoint
+		`EventSource`,                 // native browser streaming client
 		`addEventListener("document"`, // broadcast event name from internal/api
-		`dataset.state`,              // drives #live-status's data-state attribute
-		`JSON.parse`,                 // decodes the event payload
-		`catch`,                      // malformed (non-JSON) payload is caught, not thrown
-		`console.error`,              // malformed payload is logged, not swallowed silently
-		`unshift`,                    // new document prepended as the new top row
+		`dataset.state`,               // drives #live-status's data-state attribute
+		`JSON.parse`,                  // decodes the event payload
+		`catch`,                       // malformed (non-JSON) payload is caught, not thrown
+		`console.error`,               // malformed payload is logged, not swallowed silently
+		`unshift`,                     // new document prepended as the new top row
 	} {
 		if !strings.Contains(js, want) {
 			t.Errorf("app.js missing %q", want)

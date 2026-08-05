@@ -1,4 +1,4 @@
-// html-mcp single-page UI — application script.
+// HyperReader single-page UI: application script.
 //
 // T02 adds the documents table + live FTS5 search: on load it fetches
 // GET /api/documents and renders name/description/tags (newest-first, as
@@ -42,14 +42,14 @@
   function byId(id) {
     var el = document.getElementById(id);
     if (!el) {
-      console.error("html-mcp: missing element #" + id);
+      console.error("hyperreader: missing element #" + id);
     }
     return el;
   }
 
   // Surface fetch errors in the in-UI error region (R002). Kept stable from
   // T01 so fetch handlers share one error surface.
-  window.htmlMcp = {
+  window.hyperReader = {
     showError: function (message) {
       var err = byId("error-message");
       if (err) {
@@ -100,7 +100,7 @@
         state.docs = Array.isArray(docs) ? docs : [];
         setLoading(false);
         render();
-        window.htmlMcp.clearError();
+        window.hyperReader.clearError();
       })
       .catch(function (err) {
         // AbortError is expected when a newer request supersedes this one;
@@ -111,7 +111,7 @@
         state.docs = [];
         setLoading(false);
         render();
-        window.htmlMcp.showError(
+        window.hyperReader.showError(
           "Failed to load documents: " + (err && err.message ? err.message : err)
         );
       })
@@ -195,7 +195,7 @@
   // try/catch (same rationale as the inline script: private/sandboxed
   // contexts can throw) so a blocked store degrades to session-only
   // theming instead of breaking the page.
-  var THEME_KEY = "html-mcp-theme";
+  var THEME_KEY = "hyperreader-theme";
 
   function getStoredTheme() {
     try {
@@ -310,7 +310,7 @@
       doc = JSON.parse(evt.data);
     } catch (err) {
       console.error(
-        "html-mcp: malformed SSE document payload (invalid JSON), skipping",
+        "hyperreader: malformed SSE document payload (invalid JSON), skipping",
         err,
         evt.data
       );
@@ -318,7 +318,7 @@
     }
     if (!isValidDocPayload(doc)) {
       console.error(
-        "html-mcp: malformed SSE document payload (not a document object), skipping",
+        "hyperreader: malformed SSE document payload (not a document object), skipping",
         doc
       );
       return;

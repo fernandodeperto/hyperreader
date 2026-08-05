@@ -1,6 +1,6 @@
 // Playwright coverage for dark mode (small-feature workflow: dark-mode).
 //
-// Runs against the REAL `html-mcp serve` binary (see playwright.config.ts
+// Runs against the REAL `hyperreader serve` binary (see playwright.config.ts
 // webServer), same as the rest of the suite. Each `test()` gets its own
 // browser context by default, so localStorage starts empty per test —
 // that isolation is what lets tests 1 and 2 assert OS-preference
@@ -44,7 +44,7 @@ test("toggle overrides OS preference and persists across reload", async ({ page 
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(page.locator("#theme-toggle")).toHaveAttribute("aria-pressed", "true");
 
-  const stored = await page.evaluate(() => window.localStorage.getItem("html-mcp-theme"));
+  const stored = await page.evaluate(() => window.localStorage.getItem("hyperreader-theme"));
   expect(stored).toBe("dark");
 
   // Reload on the SAME OS-light emulation: if the override weren't sticky,

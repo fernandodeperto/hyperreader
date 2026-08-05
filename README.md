@@ -1,13 +1,13 @@
-# html-mcp
+# HyperReader
 
 An always-open HTML viewer for AI agent output, exposed as an MCP tool.
 
-`html-mcp` is a single Go binary with two subcommands:
+`hyperreader` is a single Go binary with two subcommands:
 
-- **`html-mcp serve`** — a long-lived HTTP server that stores HTML documents
-  (SQLite + FTS5 full-text search) and serves a live web UI to browse,
-  search, and view them.
-- **`html-mcp mcp`** — a lightweight stdio [MCP](https://modelcontextprotocol.io)
+- **`hyperreader serve`**: a long-lived HTTP server that stores HTML
+  documents (SQLite + FTS5 full-text search) and serves a live web UI to
+  browse, search, and view them.
+- **`hyperreader mcp`**: a lightweight stdio [MCP](https://modelcontextprotocol.io)
   server exposing a single tool, `send_html`, that forwards a document to
   the running `serve` process over localhost HTTP.
 
@@ -22,7 +22,7 @@ the resolved port.
 AI agent (MCP client)
      │  stdio (JSON-RPC)
      ▼
-html-mcp mcp  ──────────────►  html-mcp serve  ──────►  SQLite (docs.db)
+hyperreader mcp  ───────────►  hyperreader serve  ─────►  SQLite (docs.db)
  (forwards send_html)          (HTTP API +               + files/ (raw HTML)
                                  embedded web UI)
                                      │
@@ -48,7 +48,7 @@ html-mcp mcp  ──────────────►  html-mcp serve  ─
 
 ```bash
 git clone <this-repo>
-cd html-mcp
+cd hyperreader
 go build ./...
 ```
 
@@ -57,38 +57,38 @@ go build ./...
 ```bash
 go run . serve
 # or, after building:
-./html-mcp serve
+./hyperreader serve
 ```
 
 By default `serve` listens on port `7420` and stores data under
-`~/.local/share/html-mcp` (XDG-style). Open `http://localhost:7420/` to see
-the web UI.
+`~/.local/share/hyperreader` (XDG-style). Open `http://localhost:7420/` to
+see the web UI.
 
 Flags and environment overrides:
 
-| Setting  | Flag             | Env var             | Default                    |
-|----------|------------------|----------------------|-----------------------------|
-| Data dir | `--data-dir PATH`| `HTML_MCP_DATA_DIR`  | `$XDG_DATA_HOME/html-mcp` or `~/.local/share/html-mcp` |
-| Port     | `--port N`       | `HTML_MCP_PORT`      | `7420`                      |
+| Setting  | Flag             | Env var                | Default                    |
+|----------|------------------|-------------------------|-----------------------------|
+| Data dir | `--data-dir PATH`| `HYPERREADER_DATA_DIR`  | `$XDG_DATA_HOME/hyperreader` or `~/.local/share/hyperreader` |
+| Port     | `--port N`       | `HYPERREADER_PORT`      | `7420`                      |
 
 Override priority (highest to lowest): flag > env var > default.
 
 ```bash
-go run . serve --port 8080 --data-dir /tmp/html-mcp-data
+go run . serve --port 8080 --data-dir /tmp/hyperreader-data
 ```
 
 ### Run the MCP server
 
-`html-mcp mcp` is meant to be launched by an MCP client (e.g. an AI coding
-assistant), not run interactively — it speaks JSON-RPC over stdio and
-forwards `send_html` calls to a running `serve` process. Point an MCP
+`hyperreader mcp` is meant to be launched by an MCP client (e.g. an AI
+coding assistant), not run interactively — it speaks JSON-RPC over stdio
+and forwards `send_html` calls to a running `serve` process. Point an MCP
 client's config at the built binary:
 
 ```json
 {
   "mcpServers": {
-    "html-mcp": {
-      "command": "/absolute/path/to/html-mcp",
+    "hyperreader": {
+      "command": "/absolute/path/to/hyperreader",
       "args": ["mcp"]
     }
   }
@@ -96,15 +96,35 @@ client's config at the built binary:
 ```
 
 If `serve` is running on a non-default port, pass `--port` (or set
-`HTML_MCP_PORT`) so `mcp` forwards to the right instance:
+`HYPERREADER_PORT`) so `mcp` forwards to the right instance:
 
 ```bash
-html-mcp mcp --port 8080
+hyperreader mcp --port 8080
 ```
 
 `serve` must already be running for `send_html` calls to succeed; `mcp`
 returns a tool-level error (visible to the agent) rather than crashing if
 `serve` isn't reachable.
+
+## Migrating from html-mcp
+
+HyperReader is a clean rename of the former `html-mcp` project: the
+binary name, MCP server name, environment variables (`HTML_MCP_DATA_DIR` /
+`HTML_MCP_PORT` → `HYPERREADER_DATA_DIR` / `HYPERREADER_PORT`), and default
+data directory (`html-mcp` → `hyperreader`) have all changed with **no
+runtime fallback** to the old names or paths.
+
+Existing documents are **not** picked up automatically. If you want to
+keep them, move the old data directory into the new location before
+starting the new binary, e.g.:
+
+```bash
+mv ~/.local/share/html-mcp ~/.local/share/hyperreader
+```
+
+(Adjust the paths above if you previously overrode `HTML_MCP_DATA_DIR` or
+`XDG_DATA_HOME`.) Also update any MCP client configuration and scripts
+that reference the old `html-mcp` binary name or environment variables.
 
 ## Development
 
@@ -147,8 +167,8 @@ go vet ./...
 gofmt -l .
 ```
 
-Browser/e2e smoke tests (Playwright drives a real `html-mcp serve` binary,
-not a mock):
+Browser/e2e smoke tests (Playwright drives a real `hyperreader serve`
+binary, not a mock):
 
 ```bash
 npm install
@@ -162,7 +182,7 @@ dev instance on the default port `7420` without conflict.
 
 ### HTTP API reference
 
-All endpoints are served by `html-mcp serve`:
+All endpoints are served by `hyperreader serve`:
 
 | Method | Path                          | Description                                   |
 |--------|-------------------------------|------------------------------------------------|

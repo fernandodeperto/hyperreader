@@ -1,6 +1,6 @@
 // Package server wires the serve subcommand bootstrap: a resolved config ->
 // storage layer -> API router -> bound HTTP listener. It is the single
-// entry point for "html-mcp serve".
+// entry point for "hyperreader serve".
 //
 // The already-running guard binds the configured TCP port BEFORE opening the
 // database, so a second instance fails fast with a clear message rather than
@@ -17,17 +17,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fmendonca/html-mcp/internal/api"
-	"github.com/fmendonca/html-mcp/internal/config"
-	"github.com/fmendonca/html-mcp/internal/storage"
-	"github.com/fmendonca/html-mcp/web"
+	"github.com/fmendonca/hyperreader/internal/api"
+	"github.com/fmendonca/hyperreader/internal/config"
+	"github.com/fmendonca/hyperreader/internal/storage"
+	"github.com/fmendonca/hyperreader/web"
 )
 
 // shutdownTimeout bounds graceful shutdown when the context is cancelled,
 // draining in-flight requests before closing the listener.
 const shutdownTimeout = 5 * time.Second
 
-// Run bootstraps and serves the html-mcp HTTP API until ctx is cancelled.
+// Run bootstraps and serves the hyperreader HTTP API until ctx is cancelled.
 //
 // Bootstrap order:
 //  1. Bind the configured port (the already-running guard). A second
@@ -79,7 +79,7 @@ func Run(ctx context.Context, cfg *config.Config) error {
 		ReadHeaderTimeout: 10 * time.Second, // mitigate slowloris
 	}
 
-	fmt.Fprintf(os.Stdout, "html-mcp serve: listening on http://localhost:%d (data-dir=%s)\n", cfg.Port, cfg.DataDir)
+	fmt.Fprintf(os.Stdout, "hyperreader serve: listening on http://localhost:%d (data-dir=%s)\n", cfg.Port, cfg.DataDir)
 
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Serve(ln) }()
@@ -113,7 +113,7 @@ func bindPort(port int) (net.Listener, error) {
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		if isAddrInUse(err) {
-			return nil, fmt.Errorf("html-mcp serve is already running (port %d in use; use --port to listen elsewhere)", port)
+			return nil, fmt.Errorf("hyperreader serve is already running (port %d in use; use --port to listen elsewhere)", port)
 		}
 		return nil, fmt.Errorf("bind port %d: %w", port, err)
 	}

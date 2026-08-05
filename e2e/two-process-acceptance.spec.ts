@@ -1,7 +1,7 @@
 // Playwright proof for S04-T04 — the milestone's explicitly non-mockable
 // acceptance criterion.
 //
-// `html-mcp serve` is already running as one real OS process (Playwright's
+// `hyperreader serve` is already running as one real OS process (Playwright's
 // webServer in playwright.config.ts). This spec opens a real Chromium page
 // against it, then spawns the *compiled binary's* `mcp` subcommand as a
 // SECOND, separate OS process — exactly as an agent's MCP client would
@@ -50,16 +50,16 @@ async function openRowInNewTab(page: Page, row: Locator): Promise<Page> {
   return popup;
 }
 
-// buildHTMLMCPBinary compiles the real html-mcp binary once into a fresh
+// buildHyperReaderBinary compiles the real hyperreader binary once into a fresh
 // temp dir (outside the repo, so it never needs a .gitignore entry of its
 // own) and returns its path. Building the shipped binary — not reusing a
 // test binary — is what makes the subprocess below an honest proof of the
 // actual CLI's subcommand dispatch, flag parsing, and stdout-purity
 // contract, exactly as go's own main_mcp_e2e_test.go does for the
 // mcp-to-serve half of this proof.
-function buildHTMLMCPBinary(): string {
-  const dir = mkdtempSync(path.join(tmpdir(), "html-mcp-acceptance-"));
-  const bin = path.join(dir, process.platform === "win32" ? "html-mcp.exe" : "html-mcp");
+function buildHyperReaderBinary(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), "hyperreader-acceptance-"));
+  const bin = path.join(dir, process.platform === "win32" ? "hyperreader.exe" : "hyperreader");
   const repoRoot = path.resolve(__dirname, "..");
   const res = spawnSync("go", ["build", "-o", bin, "."], {
     cwd: repoRoot,
@@ -169,7 +169,7 @@ class RawStdioJSONRPCClient {
 test("milestone acceptance: real mcp OS process pushes send_html into a real open browser via SSE", async ({
   page,
 }) => {
-  const bin = buildHTMLMCPBinary();
+  const bin = buildHyperReaderBinary();
 
   // 1. Open the real page against the already-running serve process and
   // let its EventSource subscribe.

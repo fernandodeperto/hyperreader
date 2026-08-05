@@ -1,4 +1,4 @@
-// Package storage implements the SQLite+FTS5 persistence layer for html-mcp.
+// Package storage implements the SQLite+FTS5 persistence layer for hyperreader.
 //
 // A Store wraps a *sql.DB backed by modernc.org/sqlite (pure Go, no cgo).
 // Documents are stored as metadata in the docs table plus an FTS5 external-

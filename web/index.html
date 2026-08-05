@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>html-mcp</title>
+  <title>HyperReader</title>
   <!--
     Dark mode FOUC prevention: this must run before app.css loads so
     data-theme is set on <html> before first paint. Resolution order:
@@ -16,7 +16,7 @@
   <script>
     (function () {
       try {
-        var stored = window.localStorage.getItem("html-mcp-theme");
+        var stored = window.localStorage.getItem("hyperreader-theme");
         var theme = stored === "dark" || stored === "light"
           ? stored
           : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -32,7 +32,7 @@
 </head>
 <body>
   <!--
-    Single-page web UI for html-mcp. T01 shipped the embed/serving shell.
+    Single-page web UI for HyperReader. T01 shipped the embed/serving shell.
     T02 adds the documents table + live FTS5 search (this view). Activating
     a row opens the document's raw rendered HTML in a new browser tab via
     the existing GET /api/documents/{id}/content endpoint, with zero app
@@ -41,7 +41,7 @@
   -->
   <main id="app">
     <header>
-      <h1>html-mcp</h1>
+      <h1>HyperReader</h1>
       <!-- Dark mode toggle (visible from the table view).
            Label/icon text is set by app.js from the resolved theme, not
            hardcoded here -- avoids a mismatched label on first paint. -->

@@ -1,4 +1,4 @@
-// Package mcp implements the "html-mcp mcp" subcommand: a thin stdio MCP
+// Package mcp implements the "hyperreader mcp" subcommand: a thin stdio MCP
 // server that exposes a single tool, send_html, which forwards an HTML
 // document to the running serve process over localhost HTTP.
 //
@@ -34,7 +34,7 @@ import (
 
 // serverName/Version identify the MCP server to its clients.
 const (
-	serverName    = "html-mcp"
+	serverName    = "hyperreader"
 	serverVersion = "v0.1.0"
 )
 
@@ -109,7 +109,7 @@ func newServer(port int) *mcp.Server {
 	srv := mcp.NewServer(&mcp.Implementation{Name: serverName, Version: serverVersion}, nil)
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "send_html",
-		Description: "Send an HTML document to the always-open html-mcp viewer. The document is persisted by the running serve process and appears in its list view. Returns the new document's id and name on success; returns an error (visible to the agent) if serve is not running or rejects the document.",
+		Description: "Send an HTML document to HyperReader, the always-open HTML reader for agent output. The document is persisted by the running serve process and appears in its list view. Returns the new document's id and name on success; returns an error (visible to the agent) if serve is not running or rejects the document.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args sendHTMLArgs) (*mcp.CallToolResult, any, error) {
 		result, err := forward(ctx, port, args)
 		if err != nil {
@@ -162,7 +162,7 @@ func forward(ctx context.Context, port int, args sendHTMLArgs) (*mcp.CallToolRes
 		// Connection refused / serve not running is the expected case the
 		// demo must handle. Name the port so a debugging agent can locate
 		// the intended serve instance.
-		return nil, fmt.Errorf("serve is not reachable at %s (is `html-mcp serve` running on port %d?): %w", url, port, err)
+		return nil, fmt.Errorf("serve is not reachable at %s (is `hyperreader serve` running on port %d?): %w", url, port, err)
 	}
 	defer resp.Body.Close()
 

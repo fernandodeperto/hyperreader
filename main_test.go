@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fmendonca/html-mcp/internal/config"
+	"github.com/fmendonca/hyperreader/internal/config"
 )
 
 // setEnv sets (or unsets, for "") an env var and restores its prior value
@@ -31,7 +31,7 @@ func setEnv(t *testing.T, key, val string) {
 }
 
 // TestParseMCPFlags proves the mcp subcommand's flag parsing and port
-// resolution (flag > HTML_MCP_PORT env > DefaultPort), and that a bad flag
+// resolution (flag > HYPERREADER_PORT env > DefaultPort), and that a bad flag
 // fails fast with an error rather than falling through to mcp.Run (which
 // would block reading stdin as the JSON-RPC transport).
 func TestParseMCPFlags(t *testing.T) {
@@ -138,7 +138,7 @@ func TestRun_UnknownSubcommand(t *testing.T) {
 
 // TestRun_Help proves each of the three help spellings (-h, --help, help)
 // dispatches to printUsage and returns nil, and that the usage text lands
-// on stdout (a real user reading `html-mcp --help` expects it there, not
+// on stdout (a real user reading `hyperreader --help` expects it there, not
 // on stderr where run's own top-level error path writes).
 func TestRun_Help(t *testing.T) {
 	for _, spelling := range []string{"-h", "--help", "help"} {
@@ -162,7 +162,7 @@ func TestRun_Help(t *testing.T) {
 			if runErr != nil {
 				t.Fatalf("run([%s]) = %v, want nil", spelling, runErr)
 			}
-			if !strings.Contains(buf.String(), "Usage: html-mcp") {
+			if !strings.Contains(buf.String(), "Usage: hyperreader") {
 				t.Errorf("run([%s]) stdout = %q, want it to contain the usage banner", spelling, buf.String())
 			}
 		})
@@ -206,7 +206,7 @@ func TestUsageError(t *testing.T) {
 
 // TestPrintUsage proves the usage banner documents both subcommands, the
 // serve-specific flags, and the three config env vars — the surface a user
-// running `html-mcp --help` actually needs, not just a banner that prints
+// running `hyperreader --help` actually needs, not just a banner that prints
 // something.
 func TestPrintUsage(t *testing.T) {
 	var buf bytes.Buffer

@@ -89,6 +89,24 @@ func resultText(res *mcp.CallToolResult) string {
 	return b.String()
 }
 
+// TestNewServer_IdentifiesAsHyperReader proves the MCP initialization
+// identity moved with the project rename: a connected client's
+// InitializeResult must report the server as "hyperreader", never the
+// legacy "html-mcp" name, since an MCP client's host UI and logs surface
+// this value directly to the user.
+func TestNewServer_IdentifiesAsHyperReader(t *testing.T) {
+	cs, cleanup := connectClient(t, 0)
+	defer cleanup()
+
+	info := cs.InitializeResult()
+	if info == nil || info.ServerInfo == nil {
+		t.Fatal("InitializeResult().ServerInfo is nil")
+	}
+	if info.ServerInfo.Name != "hyperreader" {
+		t.Errorf("ServerInfo.Name = %q, want %q", info.ServerInfo.Name, "hyperreader")
+	}
+}
+
 // TestSendHTML_Success proves the happy path end-to-end through a real MCP
 // client: send_html forwards to a fake serve backend and the tool result
 // reports success (not IsError) naming the document.

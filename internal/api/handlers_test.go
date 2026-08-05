@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fmendonca/html-mcp/internal/storage"
+	"github.com/fmendonca/hyperreader/internal/storage"
 )
 
 // newRouter opens a real storage.Store against a temp dir and returns a

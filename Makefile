@@ -1,4 +1,4 @@
-# html-mcp — dev convenience targets.
+# hyperreader: dev convenience targets.
 #
 # Wraps the commands documented in README.md's Build / Run the server /
 # Run the MCP server / Run tests / Browser e2e smoke tests sections. This
@@ -6,13 +6,13 @@
 # cross-compile targets exist here because none of that exists in the
 # project yet.
 
-BINARY := html-mcp
+BINARY := hyperreader
 
 .PHONY: all build serve mcp test vet fmt fmt-fix check e2e-install e2e clean help
 
-all: build ## Build the html-mcp binary (default target)
+all: build ## Build the hyperreader binary (default target)
 
-build: ## go build ./... -> ./html-mcp
+build: ## go build ./... -> ./hyperreader
 	go build -o $(BINARY) .
 
 serve: ## go run . serve (long-lived HTTP server, default port/data-dir)
