@@ -46,6 +46,7 @@ tmp/
 
 # Playwright / e2e
 /.e2e-data/
+/.e2e-*-data/
 /playwright-report/
 /playwright/.cache/
 /test-results/
