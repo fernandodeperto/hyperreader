@@ -1,13 +1,15 @@
 # Component catalog
 
-Every class below is already defined in the copy you made. Use only these classes, and keep the single `<style>` block the shell ships with. If a report genuinely needs a one-off rule, add it at the end of that block in your copy, never in the skill's own `assets/template.html`, and leave a comment saying why.
+Every class below is already defined in the template's single `<style>` block. Use only these classes. The workflow composes the page as a string in memory and writes no file, so there is nothing on disk to edit: the template is read, its markers are replaced, and the result is sent. If a report genuinely needs a one-off rule, append it to the `<style>` block of that composed string, with a comment saying why. Never edit the skill's own `assets/template.html`.
 
 ## Section
 
 Section ids must match the `href`s in the table of contents, or the sidebar highlight goes dead.
 
+Do not number headings by hand. The contents list numbers itself from document order (`.toc a::before`), so a hand-written number in the heading is a second source that drifts the moment sections are reordered.
+
 ```html
-<h2 id="findings">2. Findings</h2>
+<h2 id="findings">Findings</h2>
 <p>Prose. Body text is capped at a 68-character measure for readability; cards, tables and figures span the full column.</p>
 ```
 

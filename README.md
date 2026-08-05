@@ -143,7 +143,24 @@ internal/storage/          SQLite storage layer + FTS5 search
 internal/mcp/              stdio MCP server (send_html tool), forwards to serve's API
 web/                       Embedded web UI (index.html, app.js, app.css) via go:embed
 e2e/                       Playwright browser smoke tests against the real serve binary
+skills/generate-html/      Agent skill: renders a long-form report and sends it to HyperReader
 ```
+
+### Agent skills
+
+`skills/generate-html/` is an agent skill that renders a long-form deliverable
+(investigation, review, incident analysis) as a single self-contained HTML page
+and delivers it through the `send_html` MCP tool, so the report opens in
+HyperReader rather than scrolling past in a terminal.
+
+It is registered by symlinking it into the agent's skill directory, so edits in
+this repository take effect immediately with no copy to keep in sync:
+
+```bash
+ln -s "$PWD/skills/generate-html" ~/.agents/skills/generate-html
+```
+
+Unrelated to `.omp/skills/`, which holds vendored tooling managed by the harness.
 
 ### Build
 

@@ -19,7 +19,7 @@
   --amber:    light-dark(#9a6700, #d29922);
   --green:    light-dark(#1a7f37, #3fb950);
   --violet:   light-dark(#8250df, #bc8cff);
-  --shadow:   light-dark(0 1px 3px rgb(0 0 0 / .08), 0 1px 3px rgb(0 0 0 / .5));
+  --shadow-color: light-dark(rgb(0 0 0 / .08), rgb(0 0 0 / .5));
 
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -120,7 +120,7 @@ blockquote { margin: 1rem 0; padding: .1rem 0 .1rem 1rem; border-left: 3px solid
 /* ---------- cards + stats ---------- */
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: var(--gap); margin: 1.2rem 0; }
 .grid.wide { grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.1rem; box-shadow: var(--shadow); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.1rem; box-shadow: 0 1px 3px var(--shadow-color); }
 .card > :last-child { margin-bottom: 0; }
 .card h3 { margin: 0 0 .5rem; font-size: 1rem; }
 .card p, .card ul, .card ol { max-width: none; }
@@ -143,14 +143,13 @@ blockquote { margin: 1rem 0; padding: .1rem 0 .1rem 1rem; border-left: 3px solid
 .badge.ok   { --hue: var(--green); } .badge.warn { --hue: var(--amber); }
 .badge.bad  { --hue: var(--red); }   .badge.info { --hue: var(--accent); }
 .badge.note { --hue: var(--violet); }
-.badge + * { margin-left: .1rem; }
 
 /* ---------- tables ---------- */
 .scroll { overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: var(--radius); }
 .scroll table { margin: 0; border: 0; }
 table { border-collapse: collapse; width: 100%; font-size: .9rem; margin: 1.1rem 0; }
 th, td { text-align: left; vertical-align: top; padding: .5rem .75rem; border-bottom: 1px solid var(--border); }
-thead th { background: var(--surface2); font-weight: 650; white-space: nowrap; position: sticky; top: 0; }
+thead th { background: var(--surface2); font-weight: 650; white-space: nowrap; }
 tbody tr:last-child td { border-bottom: 0; }
 tbody tr:hover td { background: var(--surface); }
 .n { text-align: right; font-variant-numeric: tabular-nums; }
@@ -197,7 +196,7 @@ details.more[open] > summary { margin-bottom: .7rem; padding-bottom: .5rem; bord
   position: fixed; top: .8rem; right: .8rem; z-index: 10;
   width: 2.2rem; height: 2.2rem; border-radius: 50%; cursor: pointer;
   background: var(--surface); border: 1px solid var(--border); color: var(--dim);
-  font-size: .95rem; line-height: 1; display: grid; place-items: center; box-shadow: var(--shadow);
+  font-size: .95rem; line-height: 1; display: grid; place-items: center; box-shadow: 0 1px 3px var(--shadow-color);
 }
 .theme:hover { color: var(--text); }
 footer { margin-top: 4rem; padding-top: 1.2rem; border-top: 1px solid var(--border); color: var(--dim); font-size: .82rem; }
@@ -217,6 +216,12 @@ footer { margin-top: 4rem; padding-top: 1.2rem; border-top: 1px solid var(--bord
   a { color: inherit; text-decoration: none; }
 }
 </style>
+<script>
+// Runs before first paint: a stored preference must not arrive after the
+// page has already painted the wrong theme.
+const saved = localStorage.getItem("report-theme");
+if (saved) document.documentElement.dataset.theme = saved;
+</script>
 </head>
 <body>
 <a href="#main" class="skip">Skip to content</a>
@@ -250,8 +255,6 @@ footer { margin-top: 4rem; padding-top: 1.2rem; border-top: 1px solid var(--bord
 
 <script>
 const root = document.documentElement;
-const saved = localStorage.getItem("report-theme");
-if (saved) root.dataset.theme = saved;
 
 const themeBtn = document.querySelector(".theme");
 const syncThemeBtn = () => {
