@@ -30,13 +30,18 @@ const eventBufferSize = 8
 // use from multiple goroutines, matching net/http's one-goroutine-per-request
 // model.
 type hub struct {
-	mu   sync.Mutex
-	subs map[chan []byte]struct{}
+	mu           sync.Mutex
+	subs         map[chan []byte]struct{}
+	shutdownDone <-chan struct{}
 }
 
-// newHub returns an empty hub ready for use.
-func newHub() *hub {
-	return &hub{subs: make(map[chan []byte]struct{})}
+// newHub returns an empty hub ready for use. shutdownDone closes when the
+// owning server begins shutdown; a nil channel disables that lifecycle signal.
+func newHub(shutdownDone <-chan struct{}) *hub {
+	return &hub{
+		subs:         make(map[chan []byte]struct{}),
+		shutdownDone: shutdownDone,
+	}
 }
 
 // subscribe registers a new subscriber and returns its event channel plus
@@ -134,6 +139,8 @@ func (h *handlers) events(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		select {
+		case <-h.hub.shutdownDone:
+			return
 		case <-r.Context().Done():
 			return
 		case payload, ok := <-ch:

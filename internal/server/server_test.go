@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"database/sql"
+
 	"errors"
 	"fmt"
 	"io"
@@ -105,6 +107,205 @@ func TestRun_BootstrapAndServe(t *testing.T) {
 	cancel()
 	if err := <-errCh; err != nil {
 		t.Fatalf("Run returned error on shutdown: %v", err)
+	}
+}
+
+// TestRun_ShutdownWithActiveEventStream proves an SSE subscription does not
+// hold graceful shutdown open until shutdownTimeout expires.
+func TestRun_ShutdownWithActiveEventStream(t *testing.T) {
+	dataDir := t.TempDir()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("find free port: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- Run(ctx, &config.Config{DataDir: dataDir, Port: port})
+	}()
+
+	requestCtx, cancelRequest := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancelRequest()
+	request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, "http://127.0.0.1:"+strconv(port)+"/api/events", nil)
+	if err != nil {
+		t.Fatalf("build event stream request: %v", err)
+	}
+
+	var response *http.Response
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		response, err = http.DefaultClient.Do(request)
+		if err == nil {
+			break
+		}
+		select {
+		case runErr := <-errCh:
+			t.Fatalf("server exited before serving events: %v", runErr)
+		default:
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if response == nil {
+		t.Fatalf("GET /api/events: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("GET /api/events status = %d, want 200", response.StatusCode)
+	}
+
+	connected := make([]byte, len(": connected\n\n"))
+	if _, err := io.ReadFull(response.Body, connected); err != nil {
+		t.Fatalf("read event stream connection marker: %v", err)
+	}
+	if string(connected) != ": connected\n\n" {
+		t.Fatalf("event stream connection marker = %q", connected)
+	}
+
+	cancel()
+	select {
+	case runErr := <-errCh:
+		if runErr != nil {
+			t.Fatalf("Run returned on shutdown: %v", runErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Run did not return promptly with an active event stream")
+	}
+
+	if _, err := io.ReadAll(response.Body); err != nil {
+		t.Fatalf("read closed event stream: %v", err)
+	}
+}
+
+// TestRun_ShutdownDrainsActiveRequest proves shutdown does not cancel a finite
+// request that was accepted before the listener closed.
+func TestRun_ShutdownDrainsActiveRequest(t *testing.T) {
+	dataDir := t.TempDir()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("find free port: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cfg := &config.Config{DataDir: dataDir, Port: port}
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- Run(ctx, cfg)
+	}()
+
+	base := "http://127.0.0.1:" + strconv(port)
+	readyDeadline := time.Now().Add(3 * time.Second)
+	ready := false
+
+	for time.Now().Before(readyDeadline) {
+		response, err := http.Get(base + "/api/documents")
+		if err == nil {
+			response.Body.Close()
+			ready = true
+			break
+		}
+		select {
+		case runErr := <-errCh:
+			t.Fatalf("server exited before serving: %v", runErr)
+		default:
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !ready {
+		t.Fatal("server did not start")
+	}
+
+	lockDB, err := sql.Open("sqlite", "file:"+cfg.DBPath())
+	if err != nil {
+		t.Fatalf("open database lock connection: %v", err)
+	}
+	defer lockDB.Close()
+	lockConn, err := lockDB.Conn(context.Background())
+	if err != nil {
+		t.Fatalf("open database lock connection: %v", err)
+	}
+	defer lockConn.Close()
+	if _, err := lockConn.ExecContext(context.Background(), "BEGIN EXCLUSIVE"); err != nil {
+		t.Fatalf("lock database: %v", err)
+	}
+	defer lockConn.ExecContext(context.Background(), "ROLLBACK")
+
+	request, err := http.NewRequest(http.MethodPost, base+"/api/documents", strings.NewReader(`{"name":"draining request"}`))
+	if err != nil {
+		t.Fatalf("build ingest request: %v", err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+
+	type responseResult struct {
+		response *http.Response
+		err      error
+	}
+	responseCh := make(chan responseResult, 1)
+	go func() {
+		response, err := http.DefaultClient.Do(request)
+		responseCh <- responseResult{response: response, err: err}
+	}()
+
+	select {
+	case result := <-responseCh:
+		if result.response != nil {
+			result.response.Body.Close()
+		}
+		t.Fatalf("request completed before shutdown: %v", result.err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	cancel()
+	listenerCloseDeadline := time.Now().Add(time.Second)
+	listenerClosed := false
+	for time.Now().Before(listenerCloseDeadline) {
+		conn, err := net.DialTimeout("tcp", "127.0.0.1:"+strconv(port), 50*time.Millisecond)
+		if err != nil {
+			listenerClosed = true
+			break
+		}
+		conn.Close()
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !listenerClosed {
+		t.Fatal("server listener did not close for shutdown")
+	}
+
+	if _, err := lockConn.ExecContext(context.Background(), "COMMIT"); err != nil {
+		t.Fatalf("unlock database: %v", err)
+	}
+
+	select {
+	case result := <-responseCh:
+		if result.err != nil {
+			t.Fatalf("POST /api/documents: %v", result.err)
+		}
+		defer result.response.Body.Close()
+		if result.response.StatusCode != http.StatusCreated {
+			body, _ := io.ReadAll(result.response.Body)
+			t.Fatalf("POST /api/documents status = %d (body %q), want 201", result.response.StatusCode, body)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("active request did not complete during shutdown")
+	}
+
+	select {
+	case runErr := <-errCh:
+		if runErr != nil {
+			t.Fatalf("Run returned on shutdown: %v", runErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Run did not return after the active request completed")
 	}
 }
 

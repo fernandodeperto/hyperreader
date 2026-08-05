@@ -52,28 +52,29 @@ type documentResponse struct {
 	CreatedAt   string `json:"created_at"`
 }
 
-// NewRouter builds the HTTP handler tree backed by store. It uses the Go
-// 1.22+ ServeMux with method-prefixed patterns so each route is bound to a
-// single HTTP method; unsupported methods fall through to 405 Method Not
-// Allowed automatically. The longer /content pattern wins over the {id}
-// pattern for /api/documents/{id}/content requests.
+// NewRouter builds the HTTP handler tree backed by store. shutdownDone
+// optionally closes when the owning HTTP server begins shutdown, causing
+// long-lived event streams to return promptly. It uses the Go 1.22+ ServeMux
+// with method-prefixed patterns so each route is bound to a single HTTP method;
+// unsupported methods fall through to 405 Method Not Allowed automatically. The
+// longer /content pattern wins over the {id} pattern for
+// /api/documents/{id}/content.
 //
-// GET /api/events (S04) streams text/event-stream: a successful
-// POST /api/documents broadcasts the created document's JSON to every
-// subscriber connected to /api/events.
-func NewRouter(store Store) http.Handler {
-	mux, _ := newRouterAndHub(store)
+// GET /api/events (S04) streams text/event-stream: a successful POST
+// /api/documents broadcasts the created document's JSON to every subscriber
+// connected to /api/events.
+func NewRouter(store Store, shutdownDone <-chan struct{}) http.Handler {
+	mux, _ := newRouterAndHub(store, shutdownDone)
 	return mux
 }
 
-// newRouterAndHub builds the router exactly as NewRouter does but also
-// returns the underlying event hub. It is unexported and exists solely so
-// tests in this package can inspect subscriber counts (e.g. proving
-// unsubscribe-on-disconnect for GET /api/events) without promoting hub
-// internals into the package's public API.
-func newRouterAndHub(store Store) (http.Handler, *hub) {
+// newRouterAndHub builds the router exactly as NewRouter does but also returns
+// the underlying event hub. It is unexported and exists solely so tests in this
+// package can inspect subscriber counts (e.g. proving unsubscribe-on-disconnect)
+// without the hub's internals becoming part of the API package's public surface.
+func newRouterAndHub(store Store, shutdownDone <-chan struct{}) (http.Handler, *hub) {
 	mux := http.NewServeMux()
-	h := &handlers{store: store, hub: newHub()}
+	h := &handlers{store: store, hub: newHub(shutdownDone)}
 	mux.HandleFunc("POST /api/documents", h.create)
 	mux.HandleFunc("GET /api/documents", h.list)
 	mux.HandleFunc("GET /api/documents/{id}", h.get)

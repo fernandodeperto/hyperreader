@@ -28,7 +28,7 @@ func newEventsTestServer(t *testing.T) (*httptest.Server, *hub) {
 	}
 	t.Cleanup(func() { store.Close() })
 
-	router, h := newRouterAndHub(store)
+	router, h := newRouterAndHub(store, nil)
 	srv := httptest.NewServer(router)
 	t.Cleanup(srv.Close)
 	return srv, h
@@ -274,7 +274,7 @@ func TestEvents_SubscribeAndDisconnectMultipleTimes(t *testing.T) {
 }
 
 func TestHub_BroadcastWithNoSubscribers_DoesNotPanicOrBlock(t *testing.T) {
-	h := newHub()
+	h := newHub(nil)
 	done := make(chan struct{})
 	go func() {
 		h.broadcast([]byte(`{"id":1}`))

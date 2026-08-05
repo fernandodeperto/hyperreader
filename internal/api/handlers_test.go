@@ -26,7 +26,7 @@ func newRouter(t *testing.T) (http.Handler, *storage.Store) {
 		t.Fatalf("storage.Open: %v", err)
 	}
 	t.Cleanup(func() { store.Close() })
-	return NewRouter(store), store
+	return NewRouter(store, nil), store
 }
 
 // doJSON sends a JSON request and returns the decoded body plus status code.
@@ -305,7 +305,7 @@ func TestWrongMethod_Returns405(t *testing.T) {
 // --- error-path isolation via fake store ---
 
 func TestCreate_StoreError_Returns500(t *testing.T) {
-	router := NewRouter(&fakeStore{insertErr: errors.New("disk full")})
+	router := NewRouter(&fakeStore{insertErr: errors.New("disk full")}, nil)
 	code, resp := doJSON(t, router, http.MethodPost, "/api/documents", `{"name":"x"}`)
 	if code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 on store error, got %d (%v)", code, resp)
@@ -316,7 +316,7 @@ func TestCreate_StoreError_Returns500(t *testing.T) {
 }
 
 func TestGet_StoreError_NotErrNoRows_Returns500(t *testing.T) {
-	router := NewRouter(&fakeStore{getErr: errors.New("connection lost")})
+	router := NewRouter(&fakeStore{getErr: errors.New("connection lost")}, nil)
 	code, _ := doJSON(t, router, http.MethodGet, "/api/documents/1", "")
 	if code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 on store error, got %d", code)
@@ -324,7 +324,7 @@ func TestGet_StoreError_NotErrNoRows_Returns500(t *testing.T) {
 }
 
 func TestList_StoreError_Returns500(t *testing.T) {
-	router := NewRouter(&fakeStore{listErr: errors.New("boom")})
+	router := NewRouter(&fakeStore{listErr: errors.New("boom")}, nil)
 	code, _ := doJSON(t, router, http.MethodGet, "/api/documents", "")
 	if code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 on store error, got %d", code)

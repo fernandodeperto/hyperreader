@@ -72,8 +72,10 @@ func Run(ctx context.Context, cfg *config.Config) error {
 	// only bounds how long a client has to finish sending request headers
 	// (the slowloris mitigation) and is unrelated to response duration, so
 	// it stays regardless of stream length.
+	eventShutdown := make(chan struct{})
+
 	srv := &http.Server{
-		Handler:           composeRouter(store),
+		Handler:           composeRouter(store, eventShutdown),
 		ReadHeaderTimeout: 10 * time.Second, // mitigate slowloris
 	}
 
@@ -84,7 +86,9 @@ func Run(ctx context.Context, cfg *config.Config) error {
 
 	select {
 	case <-ctx.Done():
-		// Graceful shutdown: drain in-flight requests, then close.
+		// Event streams are intentionally unbounded, so signal them to end
+		// before draining ordinary in-flight requests.
+		close(eventShutdown)
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
 		if err := srv.Shutdown(shutdownCtx); err != nil {
@@ -116,18 +120,15 @@ func bindPort(port int) (net.Listener, error) {
 	return ln, nil
 }
 
-// composeRouter builds the single HTTP handler tree mounted by Run: the
-// S01 API (unchanged) at "/api/" and the embedded static UI at "/"
-// (catch-all). Go's ServeMux longest-prefix matching routes any path under
-// /api/ to the API and everything else to the UI, so both share the single
-// bound port without the UI masking API routes. The API router is built by
-// api.NewRouter unchanged — this function only composes, never alters it. The
-// parameter is typed as api.Store (the interface api.NewRouter consumes) so
-// *storage.Store — the concrete pointer produced by storage.Open — satisfies
-// it exactly as it did before composition was introduced.
-func composeRouter(store api.Store) http.Handler {
+// composeRouter builds the single HTTP handler tree mounted by Run: the API at
+// "/api/" and the embedded static UI at "/" (catch-all). Go's ServeMux
+// longest-prefix matching routes any path under /api/ to the API and everything
+// else to the UI, so both share the single bound port without the UI masking
+// API routes. eventShutdown is passed only to the API's long-lived SSE handler;
+// finite HTTP requests retain standard http.Server shutdown behavior.
+func composeRouter(store api.Store, eventShutdown <-chan struct{}) http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("/api/", api.NewRouter(store))
+	mux.Handle("/api/", api.NewRouter(store, eventShutdown))
 	mux.Handle("/", web.Handler())
 	return mux
 }
