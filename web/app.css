@@ -4,51 +4,76 @@
  * styling. T03 adds the unsandboxed detail view + Back button styling.
  * S04-T02 adds the #live-status SSE connection indicator.
  *
- * Small-feature visual polish pass (260805-2): introduces a design-token
- * layer (:root custom properties) that the rest of the file builds on, so
- * palette/spacing/radius stay consistent without touching app.js or any
- * element IDs it depends on. Purely additive — no selectors removed. */
+ * Design tokens: :root defines two layers of custom properties —
+ * (1) semantic color roles (--bg, --fg, --surface, --accent, --status-*,
+ * --error-*) that a [data-theme="dark"] override block redefines with a
+ * dark palette, and (2) theme-independent structural tokens (--space-*,
+ * --radius-*, --shadow-*, --font-sans) shared by both themes. app.js is
+ * the single source of truth for *which* value of data-theme is active
+ * (stored preference -> OS prefers-color-scheme -> light) — this file only
+ * supplies the palettes + structural scale. The #detail-frame iframe's
+ * CONTENT is never themed here: it renders agent-authored HTML unsandboxed
+ * (R006), so only the iframe's own border/background chrome (not its
+ * document) is covered by these vars. */
 
 :root {
-  /* Neutral scale (AA-contrast checked against body/background pairs) */
-  --color-neutral-0: #ffffff;
-  --color-neutral-50: #fafafa;
-  --color-neutral-100: #f3f4f6;
-  --color-neutral-200: #e5e7eb;
-  --color-neutral-300: #d1d5db;
-  --color-neutral-500: #6b7280;
-  --color-neutral-700: #374151;
-  --color-neutral-900: #111827;
+  /* Semantic color roles, light palette (default) */
+  --bg: #fafafa;
+  --fg: #111827;
+  --surface: #ffffff;
+  --surface-alt: #f3f4f6;
+  --surface-hover: #eef3fc;
+  --border: #d1d5db;
+  --border-subtle: #e5e7eb;
+  --muted: #6b7280;
+  --accent: #3b6fd4;
+  --accent-ring: rgba(59, 111, 212, 0.15);
+  --status-connecting-fg: #7a5b00;
+  --status-connecting-bg: #fff6e0;
+  --status-live-fg: #0a6b2a;
+  --status-live-bg: #e5f7ea;
+  --status-reconnecting-fg: #b00020;
+  --status-reconnecting-bg: #fde7e9;
+  --error-fg: #b00020;
+  --error-bg: #fde7e9;
+  --error-border: #f3b6ba;
+  --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.06);
+  --shadow-md: 0 4px 16px rgba(17, 24, 39, 0.08);
 
-  /* Accent (links, focus rings, live state) */
-  --color-accent: #3b6fd4;
-  --color-accent-strong: #2952a8;
-  --color-accent-tint: #eef3fc;
-
-  /* Status colors, reused from existing live-status / error treatment */
-  --color-warn: #7a5b00;
-  --color-warn-bg: #fff6e0;
-  --color-live: #0a6b2a;
-  --color-live-bg: #e5f7ea;
-  --color-danger: #b00020;
-  --color-danger-bg: #fde7e9;
-  --color-danger-border: #f3b6ba;
-
-  /* Spacing scale */
+  /* Structural tokens (theme-independent) */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
   --space-5: 1.5rem;
   --space-6: 2rem;
-
-  /* Radius + shadow */
   --radius-sm: 6px;
   --radius-md: 10px;
-  --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.06);
-  --shadow-md: 0 4px 16px rgba(17, 24, 39, 0.08);
-
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+[data-theme="dark"] {
+  --bg: #16181d;
+  --fg: #e8e8e8;
+  --surface: #1f2229;
+  --surface-alt: #262a33;
+  --surface-hover: #232838;
+  --border: #3a3f4a;
+  --border-subtle: #2b2f38;
+  --muted: #9a9fa8;
+  --accent: #5aa3f0;
+  --accent-ring: rgba(90, 163, 240, 0.3);
+  --status-connecting-fg: #e0b84d;
+  --status-connecting-bg: #3a3320;
+  --status-live-fg: #5fd489;
+  --status-live-bg: #16321f;
+  --status-reconnecting-fg: #f2879a;
+  --status-reconnecting-bg: #3a1a20;
+  --error-fg: #f2879a;
+  --error-bg: #3a1a20;
+  --error-border: #5c2732;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 * {
@@ -59,10 +84,11 @@ body {
   margin: 0;
   font-family: var(--font-sans);
   font-size: 15px;
-  color: var(--color-neutral-900);
-  background: var(--color-neutral-50);
+  color: var(--fg);
+  background: var(--bg);
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 #app {
@@ -71,12 +97,22 @@ body {
   padding: var(--space-6) var(--space-5);
 }
 
+/* Header holds the h1 and the theme toggle, spaced apart, visible from
+ * both the table and detail views. */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
 header h1 {
-  margin: 0 0 var(--space-5);
+  margin: 0;
   font-size: 1.375rem;
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: var(--color-neutral-900);
+  color: var(--fg);
 }
 
 .toolbar {
@@ -92,14 +128,14 @@ header h1 {
   padding: var(--space-2) var(--space-3);
   font: inherit;
   color: inherit;
-  border: 1px solid var(--color-neutral-300);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--color-neutral-0);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  background: var(--surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
 
 #search::placeholder {
-  color: var(--color-neutral-500);
+  color: var(--muted);
 }
 
 /* S04: SSE connection status. Color + label change with data-state so the
@@ -123,24 +159,24 @@ header h1 {
 }
 
 #live-status[data-state="connecting"] {
-  color: var(--color-warn);
-  background: var(--color-warn-bg);
+  color: var(--status-connecting-fg);
+  background: var(--status-connecting-bg);
 }
 
 #live-status[data-state="live"] {
-  color: var(--color-live);
-  background: var(--color-live-bg);
+  color: var(--status-live-fg);
+  background: var(--status-live-bg);
 }
 
 #live-status[data-state="reconnecting"] {
-  color: var(--color-danger);
-  background: var(--color-danger-bg);
+  color: var(--status-reconnecting-fg);
+  background: var(--status-reconnecting-bg);
 }
 
 #search:focus {
   outline: none;
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(59, 111, 212, 0.15);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 /* Visible-label fallback for screen readers; the search has a placeholder. */
@@ -157,19 +193,19 @@ header h1 {
 }
 
 .empty {
-  color: var(--color-neutral-500);
+  color: var(--muted);
   font-style: normal;
   padding: var(--space-4);
   text-align: center;
-  border: 1px dashed var(--color-neutral-200);
+  border: 1px dashed var(--border-subtle);
   border-radius: var(--radius-md);
-  background: var(--color-neutral-0);
+  background: var(--surface);
 }
 
 .error {
-  color: var(--color-danger);
-  background: var(--color-danger-bg);
-  border: 1px solid var(--color-danger-border);
+  color: var(--error-fg);
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
   border-radius: var(--radius-sm);
   padding: var(--space-3) var(--space-4);
   box-shadow: var(--shadow-sm);
@@ -178,7 +214,7 @@ header h1 {
 #documents-table {
   width: 100%;
   border-collapse: collapse;
-  background: var(--color-neutral-0);
+  background: var(--surface);
   border-radius: var(--radius-md);
   overflow: hidden;
   box-shadow: var(--shadow-sm);
@@ -188,13 +224,13 @@ header h1 {
 #documents-table td {
   text-align: left;
   padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--color-neutral-200);
+  border-bottom: 1px solid var(--border-subtle);
   vertical-align: top;
 }
 
 #documents-table th {
-  background: var(--color-neutral-100);
-  color: var(--color-neutral-700);
+  background: var(--surface-alt);
+  color: var(--muted);
   font-weight: 600;
   font-size: 0.8rem;
   text-transform: uppercase;
@@ -213,11 +249,11 @@ header h1 {
 }
 
 #documents-table tbody tr:hover {
-  background: var(--color-accent-tint);
+  background: var(--surface-hover);
 }
 
 #documents-table tbody tr:focus {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
@@ -245,27 +281,35 @@ header h1 {
   margin-bottom: var(--space-4);
 }
 
-#back-button {
+/* Back button + the header's dark-mode toggle share the same chrome. */
+#back-button,
+#theme-toggle {
   font: inherit;
   font-weight: 600;
   padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--color-neutral-300);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--color-neutral-0);
-  color: var(--color-neutral-900);
+  background: var(--surface);
+  color: var(--fg);
   cursor: pointer;
   transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 
-#back-button:hover {
-  background: var(--color-neutral-100);
-  border-color: var(--color-neutral-300);
+#back-button:hover,
+#theme-toggle:hover {
+  background: var(--surface-alt);
 }
 
-#back-button:focus {
+#back-button:focus,
+#theme-toggle:focus {
   outline: none;
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(59, 111, 212, 0.15);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+#theme-toggle {
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 /* The iframe renders the document's raw HTML full-page, unsandboxed (no
@@ -276,8 +320,12 @@ header h1 {
   flex: 1 1 auto;
   width: 100%;
   min-height: 75vh;
-  border: 1px solid var(--color-neutral-200);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  background: var(--color-neutral-0);
+  /* Chrome only: this background shows only until the iframe's own
+   * document paints. The iframe's CONTENT is never themed (R006 — raw,
+   * unsandboxed agent HTML renders as authored, with no CSS injection). */
+  background: var(--surface);
   box-shadow: var(--shadow-md);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }

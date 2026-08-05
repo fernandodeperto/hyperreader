@@ -4,6 +4,30 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>html-mcp</title>
+  <!--
+    Dark mode FOUC prevention: this must run before app.css loads so
+    data-theme is set on <html> before first paint. Resolution order:
+    stored preference (localStorage) -> OS prefers-color-scheme -> light.
+    app.js owns the toggle + persistence logic; this inline script only
+    resolves the *initial* value synchronously. Wrapped in try/catch so a
+    thrown localStorage access (private/sandboxed contexts) never blocks
+    page load -- it just falls back to light.
+  -->
+  <script>
+    (function () {
+      try {
+        var stored = window.localStorage.getItem("html-mcp-theme");
+        var theme = stored === "dark" || stored === "light"
+          ? stored
+          : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light");
+        document.documentElement.dataset.theme = theme;
+      } catch (e) {
+        document.documentElement.dataset.theme = "light";
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
@@ -17,6 +41,10 @@
   <main id="app">
     <header>
       <h1>html-mcp</h1>
+      <!-- Dark mode toggle (visible from both table and detail views).
+           Label/icon text is set by app.js from the resolved theme, not
+           hardcoded here -- avoids a mismatched label on first paint. -->
+      <button id="theme-toggle" type="button" aria-label="Toggle dark mode"></button>
     </header>
 
     <!-- Table view: search + documents table (T02) -->

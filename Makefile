@@ -1,22 +1,25 @@
 # html-mcp — dev convenience targets.
 #
-# Wraps the commands documented in README.md's Build / Run tests / Browser
-# e2e smoke tests sections. This is a local-dev convenience layer only — no
-# CI, Docker, or release/cross-compile targets exist here because none of
-# that exists in the project yet (see .gsd/workflows/features/
-# 260805-3-generate-a-makefile/CONTEXT.md for full scope notes).
+# Wraps the commands documented in README.md's Build / Run the server /
+# Run the MCP server / Run tests / Browser e2e smoke tests sections. This
+# is a local-dev convenience layer only — no CI, Docker, or release/
+# cross-compile targets exist here because none of that exists in the
+# project yet.
 
 BINARY := html-mcp
 
-.PHONY: all build run test vet fmt fmt-fix check e2e-install e2e clean help
+.PHONY: all build serve mcp test vet fmt fmt-fix check e2e-install e2e clean help
 
 all: build ## Build the html-mcp binary (default target)
 
 build: ## go build ./... -> ./html-mcp
 	go build -o $(BINARY) .
 
-run: ## go run . serve (quick dev loop, default port/data-dir)
+serve: ## go run . serve (long-lived HTTP server, default port/data-dir)
 	go run . serve
+
+mcp: ## go run . mcp (stdio MCP server; normally launched by an MCP client, not by hand)
+	go run . mcp
 
 test: ## go test ./... (unit + integration, includes real MCP subprocess handshake)
 	go test ./...
