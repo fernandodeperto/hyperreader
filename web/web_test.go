@@ -122,44 +122,43 @@ func TestHandler_TableAndSearchSurfaces(t *testing.T) {
 	}
 }
 
-// TestHandler_DetailViewSurfaces is the T03 build-time gate: it proves
-// the embedded UI contains the unsandboxed detail-view surfaces T03
-// claims to ship — the detail-view section, the iframe with NO sandbox
-// attribute, the Back button, and the app.js wiring that fetches the
-// content endpoint and renders into the iframe via srcdoc. The live
-// browser behavior (click opens detail, script executes unsandboxed, Back
-// restores the table) is proven by T03's Playwright smoke; this gate only
-// proves the surfaces are embedded, so a regression that strips them fails
-// the Go test suite (not just a later browser check).
-func TestHandler_DetailViewSurfaces(t *testing.T) {
+// TestHandler_NewTabSurfaces is the M002 / Branch B build-time gate: it
+// proves the embedded UI opens a document's raw rendered HTML in a new
+// browser tab via GET /api/documents/{id}/content with zero app chrome,
+// and that the in-app detail-view/iframe/Back surfaces have been removed
+// entirely (not hidden). It asserts the app.js wiring (window.open to the
+// content endpoint with _blank, row click + keydown activation) and guards
+// against a regression that silently reintroduces the removed iframe/view.
+// The live browser behavior (click opens a new tab, script executes
+// unsandboxed at top level) is proven by T03's Playwright specs; this gate
+// only proves the surfaces are embedded, so a regression that strips them
+// fails the Go test suite (not just a later browser check).
+func TestHandler_NewTabSurfaces(t *testing.T) {
 	html := serveBody(t, "/")
-	// The detail-view section and its iframe + Back button must be present.
-	for _, want := range []string{
+	// The removed detail-view surfaces must be GONE entirely (regression
+	// guard for the Branch B removal — a reintroduction that hides rather
+	// than deletes them would re-add these and fail here).
+	for _, gone := range []string{
 		`id="detail-view"`,
 		`id="detail-frame"`,
 		`id="back-button"`,
 		`<iframe`,
 	} {
-		if !strings.Contains(html, want) {
-			t.Errorf("index.html missing %q", want)
+		if strings.Contains(html, gone) {
+			t.Errorf("index.html must not contain removed surface %q (Branch B deletes the detail view)", gone)
 		}
 	}
-	// R006: the iframe must NOT carry a sandbox attribute — its absence is
-	// what makes agent-authored inline scripts and CDN references execute.
-	// Assert the opening iframe tag has no sandbox.
-	if hasSandbox(html) {
-		t.Errorf("index.html: #detail-frame iframe must not have a sandbox attribute (R006); got iframe tag with sandbox")
-	}
 
-	// app.js must wire the detail view: the content endpoint, srcdoc
-	// rendering, the Back handler, and the row click handler.
+	// app.js must wire the new-tab open: the content endpoint, window.open
+	// with _blank, and row activation via click + keydown delegation.
 	js := serveBody(t, "/app.js")
 	for _, want := range []string{
-		`/content`,            // GET /api/documents/{id}/content
-		`srcdoc`,              // iframe rendered via srcdoc (unsandboxed)
-		`back-button`,        // Back button handler
-		`addEventListener("click"`, // row click delegation
-		`setView`,             // table/detail view toggle
+		`/content`,                  // GET /api/documents/{id}/content
+		`window.open`,              // opens the content endpoint in a new tab
+		`_blank`,                   // target is a new tab, not in-app
+		`encodeURIComponent`,       // id is URL-encoded into the path
+		`addEventListener("click"`,  // row click delegation
+		`addEventListener("keydown"`, // row keyboard activation (Enter/Space)
 	} {
 		if !strings.Contains(js, want) {
 			t.Errorf("app.js missing %q", want)
@@ -205,24 +204,6 @@ func TestHandler_LiveUpdateSurfaces(t *testing.T) {
 			t.Errorf("app.js missing %q", want)
 		}
 	}
-}
-
-// hasSandbox reports whether the iframe tag in the HTML carries a sandbox
-// attribute. It locates the <iframe opening tag and checks for "sandbox"
-// within it. Used by the R006 unsandboxed-rendering assertion.
-func hasSandbox(html string) bool {
-	idx := strings.Index(strings.ToLower(html), "<iframe")
-	if idx < 0 {
-		return false
-	}
-	// Scan from <iframe up to the closing '>' of that tag.
-	rest := html[idx:]
-	end := strings.Index(rest, ">")
-	if end < 0 {
-		return false
-	}
-	tag := strings.ToLower(rest[:end])
-	return strings.Contains(tag, "sandbox")
 }
 
 // serveBody fetches a path from the embedded UI handler and returns its

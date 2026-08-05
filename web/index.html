@@ -33,15 +33,16 @@
 <body>
   <!--
     Single-page web UI for html-mcp. T01 shipped the embed/serving shell.
-    T02 adds the documents table + live FTS5 search (this view). T03 adds
-    the unsandboxed detail view + Back button on top of this table.
-    The empty-state, loading-state, and error regions are wired by T02 so
-    every fetch outcome has a visible surface.
+    T02 adds the documents table + live FTS5 search (this view). Activating
+    a row opens the document's raw rendered HTML in a new browser tab via
+    the existing GET /api/documents/{id}/content endpoint, with zero app
+    chrome (M002 / Branch B). The empty-state, loading-state, and error
+    regions are wired by T02 so every fetch outcome has a visible surface.
   -->
   <main id="app">
     <header>
       <h1>html-mcp</h1>
-      <!-- Dark mode toggle (visible from both table and detail views).
+      <!-- Dark mode toggle (visible from the table view).
            Label/icon text is set by app.js from the resolved theme, not
            hardcoded here -- avoids a mismatched label on first paint. -->
       <button id="theme-toggle" type="button" aria-label="Toggle dark mode"></button>
@@ -72,22 +73,11 @@
             <th>Tags</th>
           </tr>
         </thead>
-        <!-- tbody rows are clickable: a click fetches the document's HTML
-             content and renders it full-page + unsandboxed (T03). -->
+        <!-- tbody rows are activatable: a click (or Enter/Space on a
+             focused row) opens the document's raw rendered HTML in a new
+             browser tab via GET /api/documents/{id}/content (M002). -->
         <tbody></tbody>
       </table>
-    </section>
-
-    <!-- Detail view (T03): renders a document's raw HTML full-page in a
-         full-viewport iframe with NO sandbox attribute and no CSP (R006),
-         so agent-authored inline scripts and absolute CDN references work.
-         The Back button hides this view and restores the table with its
-         state (rows + search) preserved across the detail detour. -->
-    <section id="detail-view" hidden>
-      <div class="detail-toolbar">
-        <button id="back-button" type="button">&larr; Back to documents</button>
-      </div>
-      <iframe id="detail-frame" title="Rendered document"></iframe>
     </section>
 
     <!-- Error region surfaced when an /api fetch fails (R002: in-UI error) -->
