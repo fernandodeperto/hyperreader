@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>html-mcp</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <!--
+    Single-page web UI for html-mcp. T01 shipped the embed/serving shell.
+    T02 adds the documents table + live FTS5 search (this view). T03 adds
+    the unsandboxed detail view + Back button on top of this table.
+    The empty-state, loading-state, and error regions are wired by T02 so
+    every fetch outcome has a visible surface.
+  -->
+  <main id="app">
+    <header>
+      <h1>html-mcp</h1>
+    </header>
+
+    <!-- Table view: search + documents table (T02) -->
+    <section id="table-view">
+      <div class="toolbar">
+        <label for="search" class="visually-hidden">Search documents</label>
+        <input id="search" type="search" placeholder="Search by name, description, or tags&hellip;" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <!-- S04: live-update indicator, driven by the EventSource connection
+             in app.js. data-state cycles connecting -> live -> reconnecting
+             so a dropped SSE connection is visible instead of the table
+             silently going stale. Starts "connecting" until the stream's
+             open event fires (proving the ": connected" comment's headers
+             were flushed). -->
+        <span id="live-status" data-state="connecting" role="status" aria-live="polite"></span>
+      </div>
+
+      <!-- Visible until the first fetch resolves; managed by app.js. -->
+      <p id="loading-state" class="empty">Loading documents&hellip;</p>
+      <p id="empty-state" class="empty" hidden>No documents yet.</p>
+      <table id="documents-table" hidden>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Tags</th>
+          </tr>
+        </thead>
+        <!-- tbody rows are clickable: a click fetches the document's HTML
+             content and renders it full-page + unsandboxed (T03). -->
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- Detail view (T03): renders a document's raw HTML full-page in a
+         full-viewport iframe with NO sandbox attribute and no CSP (R006),
+         so agent-authored inline scripts and absolute CDN references work.
+         The Back button hides this view and restores the table with its
+         state (rows + search) preserved across the detail detour. -->
+    <section id="detail-view" hidden>
+      <div class="detail-toolbar">
+        <button id="back-button" type="button">&larr; Back to documents</button>
+      </div>
+      <iframe id="detail-frame" title="Rendered document"></iframe>
+    </section>
+
+    <!-- Error region surfaced when an /api fetch fails (R002: in-UI error) -->
+    <p id="error-message" class="error" hidden></p>
+  </main>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

@@ -43,3 +43,12 @@ vendor/
 coverage/
 .cache/
 tmp/
+
+# Playwright / e2e
+/.e2e-data/
+/playwright-report/
+/playwright/.cache/
+/test-results/
+
+# Local build artifacts (the Go binary; built by `go build` / `go run`)
+/html-mcp

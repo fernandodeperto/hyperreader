@@ -1,0 +1,199 @@
+/* html-mcp single-page UI — styles.
+ *
+ * T01 shipped the bare shell. T02 adds the search toolbar + table rendering
+ * styling. T03 adds the unsandboxed detail view + Back button styling.
+ * S04-T02 adds the #live-status SSE connection indicator. */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #1a1a1a;
+  background: #fafafa;
+  line-height: 1.5;
+}
+
+#app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+header h1 {
+  margin: 0 0 1rem;
+  font-size: 1.5rem;
+}
+
+.toolbar {
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+#search {
+  flex: 1 1 auto;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  color: inherit;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+}
+
+/* S04: SSE connection status. Color + label change with data-state so the
+ * indicator is legible without relying on color alone (also has text). */
+#live-status {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+#live-status::before {
+  content: "\25CF";
+  margin-right: 0.35em;
+}
+
+#live-status[data-state="connecting"] {
+  color: #7a5b00;
+  background: #fff6e0;
+}
+
+#live-status[data-state="live"] {
+  color: #0a6b2a;
+  background: #e5f7ea;
+}
+
+#live-status[data-state="reconnecting"] {
+  color: #b00020;
+  background: #fde7e9;
+}
+
+#search:focus {
+  outline: none;
+  border-color: #4a90d9;
+  box-shadow: 0 0 0 2px rgba(74, 144, 217, 0.2);
+}
+
+/* Visible-label fallback for screen readers; the search has a placeholder. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.empty {
+  color: #666;
+  font-style: italic;
+}
+
+.error {
+  color: #b00020;
+  background: #fde7e9;
+  border: 1px solid #f3b6ba;
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+}
+
+#documents-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#documents-table th,
+#documents-table td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #e5e5e5;
+  vertical-align: top;
+}
+
+#documents-table th {
+  background: #f0f0f0;
+  font-weight: 600;
+}
+
+/* Rows are clickable (role=button, tabIndex=0) — give them an obvious
+ * pointer + hover/focus affordance so the detail view is discoverable. */
+#documents-table tbody tr {
+  cursor: pointer;
+}
+
+#documents-table tbody tr:hover {
+  background: #f5f9ff;
+}
+
+#documents-table tbody tr:focus {
+  outline: 2px solid #4a90d9;
+  outline-offset: -2px;
+}
+
+/* Detail view (T03): the toolbar holds the Back button; the iframe fills
+ * the remaining viewport so the document renders full-page.
+ *
+ * The [hidden] override is mandatory: the base #detail-view selector sets
+ * display:flex, which has higher specificity than the UA [hidden] { display:
+ * none } rule, so without this the hidden attribute would be ignored and the
+ * detail view would stay visible after Back. The compound selector
+ * (#detail-view[hidden]) wins on specificity (0,2,0 > 0,1,0) so hidden
+ * reliably hides the section while the flex layout applies when visible. */
+#detail-view {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 3rem);
+}
+
+#detail-view[hidden],
+#table-view[hidden] {
+  display: none;
+}
+
+.detail-toolbar {
+  margin-bottom: 0.75rem;
+}
+
+#back-button {
+  font: inherit;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+#back-button:hover {
+  background: #f0f0f0;
+}
+
+#back-button:focus {
+  outline: none;
+  border-color: #4a90d9;
+  box-shadow: 0 0 0 2px rgba(74, 144, 217, 0.2);
+}
+
+/* The iframe renders the document's raw HTML full-page, unsandboxed (no
+ * sandbox attribute, no CSP — R006). It fills the viewport below the Back
+ * toolbar so inline scripts and absolute CDN references render as
+ * authored, full-width. */
+#detail-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 75vh;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  background: #fff;
+}

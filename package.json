@@ -1,0 +1,12 @@
+{
+  "name": "html-mcp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "html-mcp — Playwright browser smoke against the real serve binary.",
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}
