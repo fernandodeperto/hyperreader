@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fmendonca/html-mcp/internal/config"
+	"github.com/fmendonca/hyperreader/internal/config"
 )
 
 // TestRun_AlreadyRunningGuard_FailsFast exercises the core behavioral
@@ -368,7 +368,7 @@ func TestRun_ComposesAPIAndUI(t *testing.T) {
 	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
 		t.Fatalf("GET / Content-Type = %q, want text/html prefix", ct)
 	}
-	if !strings.Contains(string(body), "<title>html-mcp</title>") {
+	if !strings.Contains(string(body), "<title>HyperReader</title>") {
 		t.Fatalf("GET / body missing expected <title>; got: %s", body)
 	}
 

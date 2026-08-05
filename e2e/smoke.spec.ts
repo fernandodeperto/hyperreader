@@ -1,6 +1,6 @@
-// Browser smoke for the html-mcp primary user loop (R002/R006).
+// Browser smoke for the HyperReader primary user loop (R002/R006).
 //
-// This test runs against the REAL `html-mcp serve` binary (see
+// This test runs against the REAL `hyperreader serve` binary (see
 // playwright.config.ts webServer). It proves the live end-to-end flow:
 //   1. seed documents via the API (POST /api/documents)
 //   2. the table renders them (name/description/tags)

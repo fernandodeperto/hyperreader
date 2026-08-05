@@ -1,8 +1,8 @@
-// Command html-mcp is the single binary behind the "always-open HTML viewer
-// for agent output". It exposes two subcommands:
+// Command hyperreader is the single binary behind HyperReader, the "always-open
+// HTML reader for agent output". It exposes two subcommands:
 //
-//	html-mcp serve   long-lived HTTP server (storage + ingest/list/get API)
-//	html-mcp mcp     stdio MCP server forwarding to the serve process
+//	hyperreader serve   long-lived HTTP server (storage + ingest/list/get API)
+//	hyperreader mcp     stdio MCP server forwarding to the serve process
 //
 // Both subcommands share the same config resolution (internal/config): the
 // XDG-style data directory and the listen port. This file wires the CLI
@@ -24,14 +24,14 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/fmendonca/html-mcp/internal/config"
-	"github.com/fmendonca/html-mcp/internal/mcp"
-	"github.com/fmendonca/html-mcp/internal/server"
+	"github.com/fmendonca/hyperreader/internal/config"
+	"github.com/fmendonca/hyperreader/internal/mcp"
+	"github.com/fmendonca/hyperreader/internal/server"
 )
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "html-mcp:", err)
+		fmt.Fprintln(os.Stderr, "hyperreader:", err)
 		os.Exit(1)
 	}
 }
@@ -98,7 +98,7 @@ func runMCP(args []string) error {
 }
 
 // parseMCPFlags parses the mcp subcommand's flags and resolves the listen
-// port via config.ResolvePort (flag > HTML_MCP_PORT > DefaultPort). It is
+// port via config.ResolvePort (flag > HYPERREADER_PORT > DefaultPort). It is
 // split out from runMCP so port resolution can be tested without invoking
 // mcp.Run, which blocks reading stdin as the JSON-RPC transport.
 func parseMCPFlags(args []string) (int, error) {
@@ -111,7 +111,7 @@ func parseMCPFlags(args []string) (int, error) {
 }
 
 func printUsage(w *os.File) {
-	fmt.Fprintln(w, "Usage: html-mcp <subcommand> [flags]")
+	fmt.Fprintln(w, "Usage: hyperreader <subcommand> [flags]")
 	fmt.Fprintln(w, "")
 	fmt.Fprintln(w, "Subcommands:")
 	fmt.Fprintln(w, "  serve   run the HTTP server (storage + ingest/list/get API)")

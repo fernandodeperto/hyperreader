@@ -34,7 +34,7 @@ func TestDefaultPort(t *testing.T) {
 
 func TestResolvePort_FlagWins(t *testing.T) {
 	setEnvs(t, map[string]string{
-		EnvPort:       "9999",
+		EnvPort:        "9999",
 		EnvXDGDataHome: "",
 	})
 	got := ResolvePort(8000)
@@ -234,6 +234,89 @@ func TestEnsureDataDir_RelativeAbsolutized(t *testing.T) {
 		t.Errorf("EnsureDataDir(rel) = %q, want absolute", abs)
 	}
 	_ = os.RemoveAll(abs)
+}
+
+// TestAppDirName_IsHyperReader proves the default per-app directory name
+// migrated from the legacy "html-mcp" to "hyperreader" per the clean
+// cutover: a stray reference to the old name would silently resurrect the
+// legacy data directory for XDG/home-fallback resolution.
+func TestAppDirName_IsHyperReader(t *testing.T) {
+	if AppDirName != "hyperreader" {
+		t.Errorf("AppDirName = %q, want %q", AppDirName, "hyperreader")
+	}
+}
+
+// TestEnvNames_AreHyperReaderNamespaced proves the override identifiers
+// themselves moved to the HYPERREADER_* namespace, not just their
+// resolution behavior — a docs/help-text reference to the old names would
+// otherwise go undetected, since every other test exercises the symbols
+// rather than their literal values.
+func TestEnvNames_AreHyperReaderNamespaced(t *testing.T) {
+	if EnvDataDir != "HYPERREADER_DATA_DIR" {
+		t.Errorf("EnvDataDir = %q, want %q", EnvDataDir, "HYPERREADER_DATA_DIR")
+	}
+	if EnvPort != "HYPERREADER_PORT" {
+		t.Errorf("EnvPort = %q, want %q", EnvPort, "HYPERREADER_PORT")
+	}
+}
+
+// TestResolvePort_LegacyEnvIgnored proves the configuration-identity
+// cutoff (spec: "Legacy configuration cutoff"): the prior HTML_MCP_PORT
+// variable is not a recognized override. Even when it is the only
+// port-related env var set, ResolvePort must fall back to DefaultPort
+// rather than reading it.
+func TestResolvePort_LegacyEnvIgnored(t *testing.T) {
+	setEnvs(t, map[string]string{
+		EnvPort:         "",
+		"HTML_MCP_PORT": "9999",
+	})
+	got := ResolvePort(0)
+	if got != DefaultPort {
+		t.Errorf("ResolvePort(0) with only legacy HTML_MCP_PORT set = %d, want DefaultPort %d (legacy env must be ignored)", got, DefaultPort)
+	}
+}
+
+// TestResolveDataDir_LegacyEnvIgnored proves the configuration-identity
+// cutoff for the data directory: the prior HTML_MCP_DATA_DIR variable is
+// not a recognized override. With only the legacy variable set, resolution
+// must fall through to the next priority tier (XDG_DATA_HOME) rather than
+// using the legacy path.
+func TestResolveDataDir_LegacyEnvIgnored(t *testing.T) {
+	xdg := t.TempDir()
+	setEnvs(t, map[string]string{
+		EnvDataDir:          "",
+		"HTML_MCP_DATA_DIR": "/should/be/ignored/by/hyperreader",
+		EnvXDGDataHome:      xdg,
+	})
+	got, err := ResolveDataDir("")
+	if err != nil {
+		t.Fatalf("ResolveDataDir: %v", err)
+	}
+	want := filepath.Join(filepath.Clean(xdg), AppDirName)
+	if got != want {
+		t.Errorf("ResolveDataDir() with only legacy HTML_MCP_DATA_DIR set = %q, want %q (legacy env must be ignored)", got, want)
+	}
+}
+
+// TestResolveDataDir_LegacyDefaultDirNotUsed proves the home-fallback
+// default directory itself moved off the legacy name: with every override
+// unset, the resolved path's app-dir component must be "hyperreader", never
+// the prior "html-mcp".
+func TestResolveDataDir_LegacyDefaultDirNotUsed(t *testing.T) {
+	setEnvs(t, map[string]string{
+		EnvDataDir:     "",
+		EnvXDGDataHome: "",
+	})
+	got, err := ResolveDataDir("")
+	if err != nil {
+		t.Fatalf("ResolveDataDir(home): %v", err)
+	}
+	if filepath.Base(got) == "html-mcp" {
+		t.Fatalf("ResolveDataDir(home) = %q, resolved to the legacy html-mcp app dir", got)
+	}
+	if filepath.Base(got) != "hyperreader" {
+		t.Errorf("ResolveDataDir(home) base = %q, want %q", filepath.Base(got), "hyperreader")
+	}
 }
 
 // endsWith reports whether path ends with suffix using OS path semantics.

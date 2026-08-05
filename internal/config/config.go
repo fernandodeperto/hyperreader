@@ -1,11 +1,11 @@
-// Package config resolves runtime configuration for the html-mcp binary:
+// Package config resolves runtime configuration for the hyperreader binary:
 // the XDG-style data directory where the SQLite DB and HTML files live,
 // and the HTTP port the serve process listens on.
 //
 // Both values honor a strict override priority:
 //
-//	data-dir: --data-dir flag  >  HTML_MCP_DATA_DIR env  >  XDG_DATA_HOME  >  ~/.local/share/html-mcp
-//	port:     --port flag (>0) >  HTML_MCP_PORT env       >  DefaultPort
+//	data-dir: --data-dir flag  >  HYPERREADER_DATA_DIR env  >  XDG_DATA_HOME  >  ~/.local/share/hyperreader
+//	port:     --port flag (>0) >  HYPERREADER_PORT env       >  DefaultPort
 //
 // The env/flag overrides are tested in config_test.go.
 package config
@@ -23,12 +23,12 @@ const (
 	DefaultPort = 7420
 
 	// AppDirName is the per-app directory created under the XDG data dir.
-	AppDirName = "html-mcp"
+	AppDirName = "hyperreader"
 
 	// EnvDataDir overrides the resolved data directory.
-	EnvDataDir = "HTML_MCP_DATA_DIR"
+	EnvDataDir = "HYPERREADER_DATA_DIR"
 	// EnvPort overrides the resolved port.
-	EnvPort = "HTML_MCP_PORT"
+	EnvPort = "HYPERREADER_PORT"
 	// EnvXDGDataHome is the standard XDG data-home variable, honored on
 	// all platforms when set (macOS/Windows fall back to os.UserHomeDir).
 	EnvXDGDataHome = "XDG_DATA_HOME"
@@ -67,9 +67,9 @@ func Resolve(dataDirFlag string, portFlag int) (*Config, error) {
 //
 // Priority:
 //  1. dataDirFlag (non-empty) — explicit --data-dir flag
-//  2. HTML_MCP_DATA_DIR env — programmatic override
-//  3. XDG_DATA_HOME/html-mcp — standard XDG, when the var is set
-//  4. ~/.local/share/html-mcp — os.UserHomeDir fallback (macOS/Windows)
+//  2. HYPERREADER_DATA_DIR env: programmatic override
+//  3. XDG_DATA_HOME/hyperreader: standard XDG, when the var is set
+//  4. ~/.local/share/hyperreader: os.UserHomeDir fallback (macOS/Windows)
 //
 // The returned path is absolute and cleaned.
 func ResolveDataDir(dataDirFlag string) (string, error) {
@@ -97,7 +97,7 @@ func ResolveDataDir(dataDirFlag string) (string, error) {
 //
 // Priority:
 //  1. portFlag > 0 — explicit --port flag
-//  2. HTML_MCP_PORT env — programmatic override (invalid value falls back to default)
+//  2. HYPERREADER_PORT env — programmatic override (invalid value falls back to default)
 //  3. DefaultPort
 func ResolvePort(portFlag int) int {
 	if portFlag > 0 {

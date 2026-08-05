@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/fmendonca/html-mcp/internal/storage"
+	"github.com/fmendonca/hyperreader/internal/storage"
 )
 
 // handlers holds the dependencies shared by all handler methods. It is

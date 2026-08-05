@@ -2,7 +2,7 @@
 // then that live-appended row opens its document in a new browser tab
 // (R002/R006 continuity).
 //
-// This runs against the REAL `html-mcp serve` binary (see
+// This runs against the REAL `hyperreader serve` binary (see
 // playwright.config.ts webServer) — the same process the smoke suite uses.
 // It proves the S04 slice's core UI contract:
 //   1. the page opens and its EventSource connects (#live-status -> "live")

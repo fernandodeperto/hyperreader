@@ -1,4 +1,4 @@
-// Package api implements the HTTP ingest/list/get API for html-mcp.
+// Package api implements the HTTP ingest/list/get API for hyperreader.
 //
 // Endpoints (Go 1.22+ ServeMux method+path pattern matching):
 //
@@ -17,7 +17,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/fmendonca/html-mcp/internal/storage"
+	"github.com/fmendonca/hyperreader/internal/storage"
 )
 
 // Store is the subset of the storage layer the API depends on. *storage.Store

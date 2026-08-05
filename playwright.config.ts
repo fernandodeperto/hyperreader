@@ -1,6 +1,6 @@
-// Playwright config for the html-mcp browser smoke.
+// Playwright config for the HyperReader browser smoke.
 //
-// The smoke runs against the REAL `html-mcp serve` binary (not a Node mock
+// The smoke runs against the REAL `hyperreader serve` binary (not a Node mock
 // of the API): webServer builds the Go binary and starts it on a free port
 // with a throwaway data dir, so the test exercises the same composed mux
 // (API at /api/ + embedded UI at /) that production serves. Playwright

@@ -1,4 +1,4 @@
-// Package web embeds the static single-page UI for html-mcp and serves it
+// Package web embeds the static single-page UI for HyperReader and serves it
 // from the same origin and port as the HTTP API. The assets (index.html,
 // app.js, app.css) live alongside this file in the web/ directory so
 // go:embed can reference them directly — go:embed patterns cannot traverse
