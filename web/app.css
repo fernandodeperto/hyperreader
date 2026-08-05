@@ -257,8 +257,10 @@ header h1 {
   outline-offset: -2px;
 }
 
-/* Detail view (T03): the toolbar holds the Back button; the iframe fills
- * the remaining viewport so the document renders full-page.
+/* Detail view (T03): the toolbar holds the Back button; the iframe sizes to
+ * its measured content height (set by app.js auto-resize in T01) so the
+ * page — not the iframe — provides the only scrollbar. The section is not
+ * pinned to viewport height; it follows the natural content flow.
  *
  * The [hidden] override is mandatory: the base #detail-view selector sets
  * display:flex, which has higher specificity than the UA [hidden] { display:
@@ -269,7 +271,6 @@ header h1 {
 #detail-view {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 3rem);
 }
 
 #detail-view[hidden],
@@ -313,13 +314,14 @@ header h1 {
 }
 
 /* The iframe renders the document's raw HTML full-page, unsandboxed (no
- * sandbox attribute, no CSP — R006). It fills the viewport below the Back
- * toolbar so inline scripts and absolute CDN references render as
- * authored, full-width. */
+ * sandbox attribute, no CSP — R006). It sizes to its measured content height
+ * (app.js sets frame.style.height; absent that, the iframe keeps its own
+ * scroll as a graceful fallback) so inline scripts and absolute CDN
+ * references render as authored, full-width, with the page as the only
+ * scrollbar. */
 #detail-frame {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   width: 100%;
-  min-height: 75vh;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   /* Chrome only: this background shows only until the iframe's own

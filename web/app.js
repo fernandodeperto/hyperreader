@@ -392,13 +392,113 @@
     }, SEARCH_DEBOUNCE_MS);
   }
 
-  // --- Detail view (T03) ---
+  // --- Detail view (T03) + auto-resize (M002 / Branch A) ---
   //
   // showDetail fetches GET /api/documents/{id}/content and renders the raw
   // HTML full-page in #detail-frame. The iframe has NO sandbox attribute
   // (R006): agent-authored inline <script> executes and absolute CDN
   // references load as authored. The table view is hidden (not removed) so
   // its state survives the detail detour; showTable restores it untouched.
+  //
+  // M002 / Branch A: once the content document loads, the iframe's outer
+  // height is set to its measured content height (plus a small buffer) so
+  // the iframe has no internal scroll surface of its own — the outer page
+  // provides the only scrollbar. A ResizeObserver on the content's
+  // documentElement re-measures when late-loading fonts/images/CDN scripts
+  // change the content height after initial load. Everything is guarded: if
+  // contentDocument is unavailable or measurement throws, the CSS
+  // min-height fallback (iframe keeps its own scroll) remains in effect.
+  // Nothing inside frame.contentDocument is ever mutated (R006) — only read
+  // from, and only the outer frame.style.height is written.
+  var detailResizeObserver = null;
+  var detailFrameLoadHandler = null;
+  var FRAME_HEIGHT_BUFFER_PX = 4;
+
+  // measureFrameHeight returns the larger of the iframe content's
+  // documentElement.scrollHeight and body.scrollHeight, or null if neither
+  // is measurable. It never throws: any access failure returns null so the
+  // caller can fall back to the CSS min-height.
+  function measureFrameHeight(frame) {
+    var doc = frame.contentDocument;
+    if (!doc) {
+      return null;
+    }
+    var de = doc.documentElement;
+    var body = doc.body;
+    var deH = de && typeof de.scrollHeight === "number" ? de.scrollHeight : 0;
+    var bodyH =
+      body && typeof body.scrollHeight === "number" ? body.scrollHeight : 0;
+    var h = Math.max(deH, bodyH);
+    return h > 0 ? h : null;
+  }
+
+  // applyFrameHeight sets the iframe's outer height to the measured content
+  // height (plus a small buffer) so the iframe has no internal scroll
+  // surface of its own. Returns true when a height was applied, false when
+  // measurement failed (caller keeps the CSS min-height fallback). Only the
+  // outer frame.style.height is written — the content document is never
+  // touched (R006).
+  function applyFrameHeight(frame) {
+    var h = measureFrameHeight(frame);
+    if (h === null) {
+      return false;
+    }
+    frame.style.height = h + FRAME_HEIGHT_BUFFER_PX + "px";
+    return true;
+  }
+
+  // watchFrameContent attaches a ResizeObserver to the iframe's content
+  // documentElement so late layout changes re-trigger a height update.
+  // Returns true if attached, false if unavailable (caller relies on the
+  // load-time measurement + CSS fallback). Guarded for same-origin/
+  // contentDocument availability and ResizeObserver support.
+  function watchFrameContent(frame) {
+    if (typeof ResizeObserver !== "function") {
+      return false;
+    }
+    var doc = frame.contentDocument;
+    if (!doc || !doc.documentElement) {
+      return false;
+    }
+    var ro = new ResizeObserver(function () {
+      // A resize firing after the document has been cleared (e.g. srcdoc
+      // reset on Back) must not throw — wrap so the fallback stays intact.
+      try {
+        applyFrameHeight(frame);
+      } catch (err) {
+        // Ignore: CSS min-height fallback remains in effect.
+      }
+    });
+    ro.observe(doc.documentElement);
+    detailResizeObserver = ro;
+    return true;
+  }
+
+  // teardownFrameSizer disconnects any active ResizeObserver and removes
+  // the load listener for the detail frame, and clears any explicit height
+  // so the CSS min-height fallback applies cleanly when no document is
+  // loaded. Called on Back and before loading a new document so doc ->
+  // back -> doc never stacks observers on detached documents.
+  function teardownFrameSizer(frame) {
+    if (detailResizeObserver) {
+      try {
+        detailResizeObserver.disconnect();
+      } catch (err) {
+        // Ignore.
+      }
+      detailResizeObserver = null;
+    }
+    if (detailFrameLoadHandler) {
+      try {
+        frame.removeEventListener("load", detailFrameLoadHandler);
+      } catch (err) {
+        // Ignore.
+      }
+      detailFrameLoadHandler = null;
+    }
+    frame.style.height = "";
+  }
+
   function showDetail(id) {
     var frame = byId("detail-frame");
     if (!frame) {
@@ -425,12 +525,31 @@
         // srcdoc renders the document's HTML as the iframe's own document.
         // With no sandbox attribute the content is same-origin and
         // unsandboxed: inline scripts run and external resources load.
+        //
+        // Auto-resize (M002): tear down any prior sizer, then attach a
+        // load listener that measures the content height and keeps it in
+        // sync via a ResizeObserver, so the iframe grows to its content
+        // and the outer page provides the only scrollbar. The listener is
+        // attached before setting srcdoc so it reliably catches the load.
+        teardownFrameSizer(frame);
+        detailFrameLoadHandler = function () {
+          try {
+            applyFrameHeight(frame);
+            watchFrameContent(frame);
+          } catch (err) {
+            // Measurement/observer setup failed: leave the CSS min-height
+            // in effect (iframe keeps its own scroll) — graceful fallback.
+          }
+        };
+        frame.addEventListener("load", detailFrameLoadHandler);
         frame.srcdoc = html;
       })
       .catch(function (err) {
         // Render the failure in the detail view itself + surface it in the
         // shared error region (R002). Bounce back to the table so the user
-        // is not left looking at a blank detail pane.
+        // is not left looking at a blank detail pane. Tear down the sizer
+        // so no stale observer/listener remains on the cleared frame.
+        teardownFrameSizer(frame);
         frame.srcdoc = "";
         setView("table");
         window.htmlMcp.showError(
@@ -444,10 +563,13 @@
   // search input were never torn down — only hidden — so the previously-
   // clicked row is still present and the search input still holds its
   // value (still searchable). The iframe srcdoc is cleared to release the
-  // rendered document and stop any scripts/CDN fetches it started.
+  // rendered document and stop any scripts/CDN fetches it started. The
+  // auto-size sizer is torn down first so no ResizeObserver/load listener
+  // outlives the document it was tracking.
   function showTable() {
     var frame = byId("detail-frame");
     if (frame) {
+      teardownFrameSizer(frame);
       frame.srcdoc = "";
     }
     setView("table");

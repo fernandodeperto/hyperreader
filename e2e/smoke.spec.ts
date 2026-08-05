@@ -57,6 +57,25 @@ const DOC_UNSANDBOXED_PROOF = {
     "</body></html>",
 };
 
+// A tall-content doc used by test 3 to prove the detail iframe has no
+// independent scroll surface once its content is measured (M002 / Branch A:
+// the page — not the iframe — provides the only scrollbar). The 2000px
+// fixed-height block is deliberately taller than the Playwright viewport
+// (720px) and taller than the old `min-height: 75vh` (~540px) floor, so the
+// iframe must have GROWN to its content via app.js auto-resize rather than
+// sitting at a capped min-height. A static marker is included so a failure
+// to render any content fails loudly rather than passing on an empty frame.
+const DOC_TALL_CONTENT = {
+  name: "Tall Content Scroll Doc",
+  description: "proves the detail iframe has no internal scrollbar",
+  tags: "test,scroll",
+  html:
+    "<!DOCTYPE html><html><body>" +
+    "<p id='static-marker'>static</p>" +
+    "<div style='height:2000px'>tall content block</div>" +
+    "</body></html>",
+};
+
 // seed POSTs a document via the real API and returns the created id. The
 // table view is populated by GET /api/documents, so seeding through the API
 // proves the UI reflects real storage — not test-injected DOM.
@@ -157,4 +176,89 @@ test("detail view renders document HTML unsandboxed via search-isolated row", as
   await expect(frame.locator("#static-marker")).toHaveText("static");
   // The inline <script> ran — unsandboxed rendering proven.
   await expect(frame.locator("#script-marker")).toHaveText("script-ran", { timeout: 10_000 });
+});
+
+test("detail iframe has no internal scrollbar: page is the sole scrollbar (M002)", async ({ page }) => {
+  // Proves Branch A's single-scrollbar behavior: once the detail content is
+  // measured, the iframe has no independent scroll surface of its own and the
+  // outer page provides the only scrollbar. Search-isolates its own tall doc
+  // so it is robust to whatever tests 1 and 2 left in the shared store.
+  await seed(page, DOC_TALL_CONTENT);
+
+  await page.goto("/");
+  await expect(page.locator("#loading-state")).toBeHidden();
+
+  // Isolate this test's doc via the real FTS5 search.
+  await page.locator("#search").fill("Tall Content Scroll");
+  const rows = tableRows(page);
+  await expect(rows).toHaveCount(1);
+  await expect(rows.nth(0)).toContainText("Tall Content Scroll Doc");
+
+  await rows.nth(0).click();
+  await expect(page.locator("#detail-view")).toBeVisible();
+  const iframeEl = page.locator("#detail-frame");
+
+  // Wait for the document's HTML to render in the iframe before measuring —
+  // the static marker proves content loaded (and fails loudly on an empty
+  // frame rather than passing on a zero-height iframe).
+  const frame = page.frameLocator("#detail-frame");
+  await expect(frame.locator("#static-marker")).toHaveText("static");
+
+  // Poll until app.js auto-resize has set an explicit height that grew the
+  // iframe to its content. The 2000px content block is taller than both the
+  // Playwright viewport (720px) and the old `min-height: 75vh` floor
+  // (~540px), so a bounding height above 1000px proves the iframe GREW to
+  // its measured content rather than sitting at a capped min-height. A
+  // non-empty inline `height` style proves the JS sizer ran (not the CSS
+  // fallback). The ResizeObserver may re-apply once after load, so poll
+  // until both conditions hold.
+  await expect.poll(
+    async () => {
+      return await iframeEl.evaluate((el: HTMLIFrameElement) => {
+        const h = Math.round(el.getBoundingClientRect().height);
+        return el.style.height.length > 0 && h > 1000;
+      });
+    },
+    {
+      timeout: 10_000,
+      message: "iframe auto-resized to its tall content (style.height set, height > 1000px)",
+    },
+  ).toBe(true);
+
+  // Re-read the settled sizer state and assert the single-scrollbar contract:
+  //   - the iframe grew well past the viewport and the old 75vh floor
+  //     (proving JS auto-resize, not a capped min-height);
+  //   - the iframe's nested document has NO vertical overflow — its
+  //     documentElement.scrollHeight does not exceed the viewport the
+  //     iframe gives it (clientHeight) by more than a small sub-pixel
+  //     tolerance, so there is no internal scrollbar on the iframe;
+  //   - the outer page DOES scroll (body.scrollHeight > clientHeight),
+  //     so the page — not the iframe — is the sole scrollbar.
+  const sizer = await iframeEl.evaluate((el: HTMLIFrameElement) => {
+    const doc = el.contentDocument;
+    const de = doc && doc.documentElement;
+    return {
+      styleHeight: el.style.height,
+      frameClientHeight: el.clientHeight,
+      frameBoundingHeight: Math.round(el.getBoundingClientRect().height),
+      nestedScrollHeight: de ? de.scrollHeight : 0,
+      nestedClientHeight: de ? de.clientHeight : 0,
+    };
+  });
+  const pageScroll = await page.evaluate(() => ({
+    scrollHeight: document.documentElement.scrollHeight,
+    clientHeight: document.documentElement.clientHeight,
+  }));
+
+  // Grew to content, not capped at a fixed min-height.
+  expect(sizer.styleHeight.length).toBeGreaterThan(0);
+  expect(sizer.frameBoundingHeight).toBeGreaterThan(1000);
+
+  // No internal scroll surface on the iframe: nested content fits within
+  // the iframe's viewport (a failing capped case would overflow by ~1500px,
+  // so 16px of sub-pixel/border tolerance is safe and non-flaky).
+  expect(sizer.nestedScrollHeight).toBeLessThanOrEqual(sizer.nestedClientHeight + 16);
+
+  // The outer page scrolls — so the page is the sole scrollbar.
+  expect(pageScroll.scrollHeight).toBeGreaterThan(pageScroll.clientHeight);
 });
