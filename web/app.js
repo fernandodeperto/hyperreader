@@ -181,6 +181,89 @@
     return td;
   }
 
+  // --- Dark mode (S05) ---
+  //
+  // Single source of truth for the *current* theme is the "data-theme"
+  // attribute on <html>, resolved synchronously by the inline script in
+  // index.html's <head> (before first paint, avoiding a FOUC) using:
+  // stored preference (localStorage) -> OS prefers-color-scheme -> light.
+  // This module owns everything *after* that initial resolution: syncing
+  // the toggle button's label/aria-pressed, persisting an explicit user
+  // choice, and reacting live to OS-level scheme changes for users who
+  // have never overridden it. All localStorage access is wrapped in
+  // try/catch (same rationale as the inline script: private/sandboxed
+  // contexts can throw) so a blocked store degrades to session-only
+  // theming instead of breaking the page.
+  var THEME_KEY = "html-mcp-theme";
+
+  function getStoredTheme() {
+    try {
+      var v = window.localStorage.getItem(THEME_KEY);
+      return v === "dark" || v === "light" ? v : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function storeTheme(theme) {
+    try {
+      window.localStorage.setItem(THEME_KEY, theme);
+    } catch (e) {
+      // Ignore: theming still works for this session via the DOM
+      // attribute, it just won't persist across reloads.
+    }
+  }
+
+  function currentTheme() {
+    return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  }
+
+  // applyTheme updates the DOM only (attribute + toggle button state) --
+  // it does NOT persist. Used both by explicit user toggles (paired with
+  // storeTheme) and by the live OS-preference listener (which must NOT
+  // persist, or it would silently convert "no preference" into a sticky
+  // stored one).
+  function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    var btn = byId("theme-toggle");
+    if (btn) {
+      var isDark = theme === "dark";
+      btn.textContent = isDark ? "\u2600\ufe0e Light mode" : "\u263D\ufe0e Dark mode";
+      btn.setAttribute("aria-pressed", String(isDark));
+    }
+  }
+
+  function setTheme(theme) {
+    applyTheme(theme);
+    storeTheme(theme);
+  }
+
+  function toggleTheme() {
+    setTheme(currentTheme() === "dark" ? "light" : "dark");
+  }
+
+  // Live-follow the OS scheme only while the user has never explicitly
+  // chosen a theme (no stored override). Once a user toggles, their choice
+  // is sticky across OS changes until they toggle again.
+  function watchSystemTheme() {
+    if (typeof window.matchMedia !== "function") {
+      return;
+    }
+    var mql = window.matchMedia("(prefers-color-scheme: dark)");
+    var onChange = function (evt) {
+      if (getStoredTheme() !== null) {
+        return;
+      }
+      applyTheme(evt.matches ? "dark" : "light");
+    };
+    if (typeof mql.addEventListener === "function") {
+      mql.addEventListener("change", onChange);
+    } else if (typeof mql.addListener === "function") {
+      // Safari < 14 / older engines.
+      mql.addListener(onChange);
+    }
+  }
+
   // --- Live updates via SSE (S04-T02) ---
   //
   // setLiveStatus mirrors the EventSource connection lifecycle into
@@ -435,6 +518,17 @@
     if (back) {
       back.addEventListener("click", showTable);
     }
+
+    // Dark mode (S05): the inline head script already resolved and applied
+    // the initial theme before paint; sync the toggle button's label to
+    // that resolved state, wire the click handler, and start following OS
+    // scheme changes for users who haven't set an explicit preference.
+    applyTheme(currentTheme());
+    var themeToggle = byId("theme-toggle");
+    if (themeToggle) {
+      themeToggle.addEventListener("click", toggleTheme);
+    }
+    watchSystemTheme();
 
     fetchDocs("");
 
