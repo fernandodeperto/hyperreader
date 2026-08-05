@@ -1,5 +1,6 @@
 // Playwright proof for S04-T03: live SSE row append with no page refresh,
-// then detail view + Back on that live-appended row (R002/R006 continuity).
+// then that live-appended row opens its document in a new browser tab
+// (R002/R006 continuity).
 //
 // This runs against the REAL `html-mcp serve` binary (see
 // playwright.config.ts webServer) — the same process the smoke suite uses.
@@ -8,16 +9,22 @@
 //   2. a document ingested through the running server's real API — while
 //      the page stays open and idle — appears as a new top row via the SSE
 //      broadcast, with NO fetch-driven re-render and NO page reload
-//   3. that live-appended row behaves like any other row: clicking it
-//      renders its HTML full-page unsandboxed (inline <script> executes)
-//   4. Back returns to the table with the row still present and still
-//      findable via the real FTS5 search
+//   3. that live-appended row behaves like any other row: activating it
+//      opens its raw rendered HTML in a NEW BROWSER TAB via window.open to
+//      GET /api/documents/{id}/content, where the doc's inline <script>
+//      runs and leaves a marker (R006: unsandboxed rendering at the top
+//      level, not inside an in-app iframe — M002 / Branch B removed that
+//      surface entirely)
+//   4. the table view stays visible throughout (Branch B never hides it),
+//      and the live row is still present and findable via the real FTS5
+//      search after the popup is closed (no Back button anymore — the user
+//      just closes the tab)
 //
 // "No reload" is proven with a window sentinel (per the slice's Must-Haves):
 // a value stashed on `window` after the page loads that a navigation/reload
 // would clear. If the sentinel is still present after the live row appears,
 // the row arrived via the EventSource/DOM path, not a reload.
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, type Locator } from "@playwright/test";
 
 // A document whose HTML contains an inline <script> that writes a marker
 // into the DOM, plus a static marker — same proof shape as e2e/smoke.spec.ts
@@ -41,7 +48,21 @@ function tableRows(page: Page) {
   return page.locator("#documents-table tbody tr");
 }
 
-test("live row append with no refresh, then detail and Back", async ({ page }) => {
+// openRowInNewTab clicks a document row and returns the popup Page that
+// window.open produced (Branch B: GET /api/documents/{id}/content in a new
+// top-level tab with zero app chrome). The popup promise is registered
+// BEFORE the click so Playwright captures the popup event regardless of
+// timing. waitForLoadState("domcontentloaded") ensures the document's HTML
+// (and its inline <script>) has parsed before the caller asserts on markers.
+async function openRowInNewTab(page: Page, row: Locator): Promise<Page> {
+  const popupPromise = page.waitForEvent("popup");
+  await row.click();
+  const popup = await popupPromise;
+  await popup.waitForLoadState("domcontentloaded");
+  return popup;
+}
+
+test("live row append with no refresh, then new-tab open on that live row", async ({ page }) => {
   // A name unique to this test run so the FTS5 search step at the end can
   // isolate this exact row regardless of whatever else the shared store
   // (webServer runs once for the whole suite) already contains.
@@ -92,24 +113,35 @@ test("live row append with no refresh, then detail and Back", async ({ page }) =
   );
   expect(sentinel).toBe("still-here");
 
-  // 4. Click the live-appended row -> unsandboxed detail view, same as any
-  // other row (R006 continuity for live rows).
-  await rows.nth(0).click();
-  await expect(page.locator("#table-view")).toBeHidden();
-  await expect(page.locator("#detail-view")).toBeVisible();
+  // Regression guard (Branch B): the in-app detail view, iframe, and Back
+  // button were DELETED, not hidden. They must be absent from the DOM —
+  // passing by omission on dead code is explicitly disallowed, so assert
+  // the absence directly before exercising the new-tab path.
+  await expect(page.locator("#detail-view")).toHaveCount(0);
+  await expect(page.locator("#detail-frame")).toHaveCount(0);
+  await expect(page.locator("#back-button")).toHaveCount(0);
 
-  const iframeEl = page.locator("#detail-frame");
-  await expect(iframeEl).not.toHaveAttribute("sandbox");
+  // 4. Activate the live-appended row -> its raw rendered HTML opens in a
+  //    new browser tab (window.open to /api/documents/{id}/content), same
+  //    as any other row (R006 continuity for live rows — now proven in the
+  //    new-tab context, not an in-app iframe).
+  const popup = await openRowInNewTab(page, rows.nth(0));
+  await expect(popup).toHaveURL(/\/api\/documents\/\d+\/content$/);
 
-  const frame = page.frameLocator("#detail-frame");
-  await expect(frame.locator("#static-marker")).toHaveText("static");
+  // Branch B: the table view is never hidden — it stays visible while the
+  // document opens in a separate tab (no in-app view-switching).
+  await expect(page.locator("#table-view")).toBeVisible();
+
+  await expect(popup.locator("#static-marker")).toHaveText("static");
   // The inline <script> ran — unsandboxed rendering proven even for a row
-  // that arrived via SSE rather than the initial fetch.
-  await expect(frame.locator("#script-marker")).toHaveText("script-ran", { timeout: 10_000 });
+  // that arrived via SSE rather than the initial fetch, in the new
+  // top-level tab (R006) rather than a sandboxed iframe.
+  await expect(popup.locator("#script-marker")).toHaveText("script-ran", { timeout: 10_000 });
 
-  // 5. Back -> table restored, live row still present.
-  await page.locator("#back-button").click();
-  await expect(page.locator("#detail-view")).toBeHidden();
+  // 5. Closing the popup leaves the table intact: the live row is still
+  //    present. (Branch B has no Back button — the user simply closes the
+  //    tab.)
+  await popup.close();
   await expect(page.locator("#table-view")).toBeVisible();
   await expect(rows).toHaveCount(initialCount + 1);
   await expect(page.locator("#documents-table tbody tr", { hasText: uniqueName })).toBeVisible();

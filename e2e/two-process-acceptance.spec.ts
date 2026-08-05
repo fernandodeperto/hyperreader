@@ -14,11 +14,15 @@
 // It proves the full agent-to-browser loop: send_html over the second
 // process's stdio -> serve's POST /api/documents -> serve's SSE broadcast
 // -> the already-open page's EventSource -> a new top row, with no manual
-// refresh — then that row's detail view renders unsandboxed and Back
-// leaves it present and FTS5-searchable (same continuity contract as
-// e2e/sse-live.spec.ts, now proven end-to-end with real processes at every
-// hop).
-import { test, expect, type Page } from "@playwright/test";
+// refresh — then activating that row opens its raw rendered HTML in a NEW
+// BROWSER TAB (window.open to GET /api/documents/{id}/content) where the
+// doc's inline <script> runs and leaves a marker (R006: unsandboxed
+// rendering at the top level, not inside an in-app iframe — M002 / Branch
+// B removed that surface entirely). The table stays visible the whole
+// time, and the row remains present and FTS5-searchable after the popup is
+// closed (same continuity contract as e2e/sse-live.spec.ts, now proven
+// end-to-end with real processes at every hop).
+import { test, expect, type Page, type Locator } from "@playwright/test";
 import { type ChildProcessWithoutNullStreams, spawn, spawnSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -30,6 +34,20 @@ const port = Number(process.env.PORT) || 7421;
 
 function tableRows(page: Page) {
   return page.locator("#documents-table tbody tr");
+}
+
+// openRowInNewTab clicks a document row and returns the popup Page that
+// window.open produced (Branch B: GET /api/documents/{id}/content in a new
+// top-level tab with zero app chrome). The popup promise is registered
+// BEFORE the click so Playwright captures the popup event regardless of
+// timing. waitForLoadState("domcontentloaded") ensures the document's HTML
+// (and its inline <script>) has parsed before the caller asserts on markers.
+async function openRowInNewTab(page: Page, row: Locator): Promise<Page> {
+  const popupPromise = page.waitForEvent("popup");
+  await row.click();
+  const popup = await popupPromise;
+  await popup.waitForLoadState("domcontentloaded");
+  return popup;
 }
 
 // buildHTMLMCPBinary compiles the real html-mcp binary once into a fresh
@@ -229,21 +247,38 @@ test("milestone acceptance: real mcp OS process pushes send_html into a real ope
     client.close();
   }
 
-  // 4. The live-appended row behaves like any other row: unsandboxed
-  // detail rendering, then Back with the row still present and searchable.
-  await rows.nth(0).click();
-  await expect(page.locator("#table-view")).toBeHidden();
-  await expect(page.locator("#detail-view")).toBeVisible();
+  // 4. The live-appended row behaves like any other row: activating it
+  // opens its raw rendered HTML in a NEW BROWSER TAB via window.open to
+  // GET /api/documents/{id}/content (Branch B). There is no in-app
+  // detail view, iframe, or Back button anymore (all removed, not hidden).
+  //
+  // Regression guard (Branch B): the removed surfaces must be absent from
+  // the DOM — passing by omission on dead code is explicitly disallowed,
+  // so assert the absence directly before exercising the new-tab path.
+  await expect(page.locator("#detail-view")).toHaveCount(0);
+  await expect(page.locator("#detail-frame")).toHaveCount(0);
+  await expect(page.locator("#back-button")).toHaveCount(0);
 
-  const iframeEl = page.locator("#detail-frame");
-  await expect(iframeEl).not.toHaveAttribute("sandbox");
+  const popup = await openRowInNewTab(page, rows.nth(0));
+  // The popup navigated to the content endpoint for this document.
+  await expect(popup).toHaveURL(/\/api\/documents\/\d+\/content$/);
 
-  const frame = page.frameLocator("#detail-frame");
-  await expect(frame.locator("#static-marker")).toHaveText("static");
-  await expect(frame.locator("#script-marker")).toHaveText("script-ran", { timeout: 10_000 });
+  // Branch B: the table view is never hidden — it stays visible while the
+  // document opens in a separate tab (no in-app view-switching).
+  await expect(page.locator("#table-view")).toBeVisible();
 
-  await page.locator("#back-button").click();
-  await expect(page.locator("#detail-view")).toBeHidden();
+  await expect(popup.locator("#static-marker")).toHaveText("static");
+  // The inline <script> ran — unsandboxed rendering proven even for a row
+  // that arrived via a real separate mcp OS process's send_html call, in
+  // the new top-level tab (R006) rather than a sandboxed iframe. This is
+  // the milestone's acceptance proof: real processes at every hop, and
+  // the unsandboxed render survives the M002 Branch B change intact.
+  await expect(popup.locator("#script-marker")).toHaveText("script-ran", { timeout: 10_000 });
+
+  // 5. Closing the popup leaves the table intact: the live row is still
+  //    present and searchable. (Branch B has no Back button — the user
+  //    simply closes the tab.)
+  await popup.close();
   await expect(page.locator("#table-view")).toBeVisible();
   await expect(rows).toHaveCount(initialCount + 1);
   await expect(page.locator("#documents-table tbody tr", { hasText: uniqueName })).toBeVisible();
