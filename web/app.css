@@ -1,8 +1,10 @@
 /* html-mcp single-page UI — styles.
  *
  * T01 shipped the bare shell. T02 adds the search toolbar + table rendering
- * styling. T03 adds the unsandboxed detail view + Back button styling.
- * S04-T02 adds the #live-status SSE connection indicator.
+ * styling. S04-T02 adds the #live-status SSE connection indicator.
+ * M002-S02 removed the in-app detail view / iframe / Back button; activating
+ * a document row now opens /api/documents/{id}/content in a new browser tab,
+ * so only the table view + header + search toolbar remain.
  *
  * Design tokens: :root defines two layers of custom properties —
  * (1) semantic color roles (--bg, --fg, --surface, --accent, --status-*,
@@ -11,10 +13,7 @@
  * --radius-*, --shadow-*, --font-sans) shared by both themes. app.js is
  * the single source of truth for *which* value of data-theme is active
  * (stored preference -> OS prefers-color-scheme -> light) — this file only
- * supplies the palettes + structural scale. The #detail-frame iframe's
- * CONTENT is never themed here: it renders agent-authored HTML unsandboxed
- * (R006), so only the iframe's own border/background chrome (not its
- * document) is covered by these vars. */
+ * supplies the palettes + structural scale. */
 
 :root {
   /* Semantic color roles, light palette (default) */
@@ -97,8 +96,7 @@ body {
   padding: var(--space-6) var(--space-5);
 }
 
-/* Header holds the h1 and the theme toggle, spaced apart, visible from
- * both the table and detail views. */
+/* Header holds the h1 and the theme toggle, spaced apart. */
 header {
   display: flex;
   align-items: center;
@@ -242,7 +240,7 @@ header h1 {
 }
 
 /* Rows are clickable (role=button, tabIndex=0) — give them an obvious
- * pointer + hover/focus affordance so the detail view is discoverable. */
+ * pointer + hover/focus affordance so activation is discoverable. */
 #documents-table tbody tr {
   cursor: pointer;
   transition: background-color 0.12s ease;
@@ -257,36 +255,13 @@ header h1 {
   outline-offset: -2px;
 }
 
-/* Detail view (T03): the toolbar holds the Back button; the iframe sizes to
- * its measured content height (set by app.js auto-resize in T01) so the
- * page — not the iframe — provides the only scrollbar. The section is not
- * pinned to viewport height; it follows the natural content flow.
- *
- * The [hidden] override is mandatory: the base #detail-view selector sets
- * display:flex, which has higher specificity than the UA [hidden] { display:
- * none } rule, so without this the hidden attribute would be ignored and the
- * detail view would stay visible after Back. The compound selector
- * (#detail-view[hidden]) wins on specificity (0,2,0 > 0,1,0) so hidden
- * reliably hides the section while the flex layout applies when visible. */
-#detail-view {
-  display: flex;
-  flex-direction: column;
-}
-
-#detail-view[hidden],
-#table-view[hidden] {
-  display: none;
-}
-
-.detail-toolbar {
-  margin-bottom: var(--space-4);
-}
-
-/* Back button + the header's dark-mode toggle share the same chrome. */
-#back-button,
+/* The header's dark-mode toggle button chrome. The former Back button shared
+ * this styling; it was removed with the in-app detail view in M002-S02. */
 #theme-toggle {
   font: inherit;
   font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
   padding: var(--space-2) var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -296,38 +271,12 @@ header h1 {
   transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 
-#back-button:hover,
 #theme-toggle:hover {
   background: var(--surface-alt);
 }
 
-#back-button:focus,
 #theme-toggle:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-ring);
-}
-
-#theme-toggle {
-  font-size: 0.85rem;
-  white-space: nowrap;
-}
-
-/* The iframe renders the document's raw HTML full-page, unsandboxed (no
- * sandbox attribute, no CSP — R006). It sizes to its measured content height
- * (app.js sets frame.style.height; absent that, the iframe keeps its own
- * scroll as a graceful fallback) so inline scripts and absolute CDN
- * references render as authored, full-width, with the page as the only
- * scrollbar. */
-#detail-frame {
-  flex: 0 1 auto;
-  width: 100%;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  /* Chrome only: this background shows only until the iframe's own
-   * document paints. The iframe's CONTENT is never themed (R006 — raw,
-   * unsandboxed agent HTML renders as authored, with no CSS injection). */
-  background: var(--surface);
-  box-shadow: var(--shadow-md);
-  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
