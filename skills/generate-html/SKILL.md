@@ -45,7 +45,9 @@ In a single `eval` cell: read the template into memory, replace its markers with
 Read [references/components.md](references/components.md) for the copy-paste snippets to compose inside the `replace`: banner, stats, cards, callouts, evidence badges, tables, diffs, steps, meters, SVG figures, appendices.
 
 ```python
-template = read('skill://html-report/assets/template.html')
+import re
+
+template = read('skill://generate-html/assets/template.html')
 
 # Replace the CONTENT marker with your composed sections
 html = template.replace('<!-- CONTENT -->', '<div class="banner bad">...</div>...')
@@ -55,13 +57,17 @@ html = (html
     .replace('REPORT KIND', 'TROUBLESHOOTING')
     .replace('REPORT TITLE', 'The Capacity Ceiling')
     .replace('LEDE: one or two sentences stating the outcome, not the topic.', 'The 2026-07-08 flip pushed demand permanently over the consumer ceiling.')
-    .replace('<li><a href="#section-1">Section one</a></li>', '<li><a href="#findings">Findings</a></li>')
+    .replace('<li><a href="#section-1">Section one</a></li>',
+             '<li><a href="#ceiling">The capacity ceiling</a></li>'
+             '<li><a href="#trigger">What changed on 07-08</a></li>'
+             '<li><a href="#options">Options</a></li>')
     .replace('<span>DATE</span><span>SCOPE</span><span>SOURCES</span>', '<span>2026-07-10</span><span>kafka-consumer</span><span>grafana, flog</span>')
     .replace('Generated DATE. METHOD AND CAVEATS.', 'Generated 2026-07-10. Prometheus queries only; no client logs.')
 )
 
-# Assert no shell markers remain
-for marker in ['REPORT KIND', 'REPORT TITLE', 'LEDE:', 'Section one', 'METHOD AND CAVEATS']:
+# Assert no shell marker survives. DATE catches either occurrence (see below).
+for marker in ['REPORT KIND', 'REPORT TITLE', 'LEDE:', 'DATE', 'SCOPE', 'SOURCES',
+               'Section one', '<!-- CONTENT -->', 'METHOD AND CAVEATS']:
     assert marker not in html, f"unfilled marker: {marker}"
 
 result = tool.mcp__hyperreader_send_html({
@@ -70,8 +76,12 @@ result = tool.mcp__hyperreader_send_html({
     "description": "The 2026-07-08 flip pushed demand permanently over the consumer ceiling.",
     "tags": "troubleshooting,kafka"
 })
-display(result["text"])
+# Hand over the report's own permalink, not the list view
+m = re.search(r'id=(\d+).*?port (\d+)', result["text"])
+display(f"http://localhost:{m.group(2)}/api/documents/{m.group(1)}/content" if m else result["text"])
 ```
+
+`DATE` appears twice in the shell: once in the masthead `<span>` run and once in the footer sentence. Fill each by replacing its whole enclosing string, as above, never the bare token, or filling one corrupts the other. The bare `DATE` in the assert list catches either occurrence being missed.
 
 `send_html` arguments:
 
@@ -80,7 +90,7 @@ display(result["text"])
 - `description`: the lede sentence from the masthead. This is what appears under the title in HyperReader's list view, so it should summarize the outcome in one line.
 - `tags`: the eyebrow (report kind) from the masthead, lowercased. Add more tags if useful, comma-separated.
 
-HyperReader returns a URL (`http://localhost:<port>/`). That is the handover: state the URL so the user can click through. The report appears live in HyperReader's list via SSE the moment it is ingested.
+`send_html` returns text of the form `Document "<name>" ingested (id=<id>) via serve on port <port>. View it at http://localhost:<port>/`. That trailing URL is the list view, not the report, so the cell above rebuilds the permalink from the `id` and port it carries. Hand over `http://localhost:<port>/api/documents/<id>/content`: it opens the report full-page, and it is the same URL HyperReader opens when a reader clicks a row. If the parse fails, hand over the returned text verbatim rather than a guessed URL. The report appears live in HyperReader's list via SSE the moment it is ingested.
 
 If `send_html` fails (serve not running, connection refused), state the error. Optionally write the string to a file as a fallback so the user can open it directly.
 
