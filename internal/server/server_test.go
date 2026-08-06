@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fmendonca/hyperreader/internal/config"
+	"github.com/fernandodeperto/hyperreader/internal/config"
 )
 
 // TestRun_AlreadyRunningGuard_FailsFast exercises the core behavioral

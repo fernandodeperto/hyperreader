@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fmendonca/hyperreader/internal/config"
+	"github.com/fernandodeperto/hyperreader/internal/config"
 )
 
 // setEnv sets (or unsets, for "") an env var and restores its prior value

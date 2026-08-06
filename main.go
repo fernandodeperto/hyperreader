@@ -24,9 +24,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/fmendonca/hyperreader/internal/config"
-	"github.com/fmendonca/hyperreader/internal/mcp"
-	"github.com/fmendonca/hyperreader/internal/server"
+	"github.com/fernandodeperto/hyperreader/internal/config"
+	"github.com/fernandodeperto/hyperreader/internal/mcp"
+	"github.com/fernandodeperto/hyperreader/internal/server"
 )
 
 func main() {

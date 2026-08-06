@@ -1,6 +1,7 @@
 /.e2e-data/
 /hyperreader
 /html-mcp
+/dist/
 
 /node_modules/
 

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/fmendonca/hyperreader/internal/storage"
+	"github.com/fernandodeperto/hyperreader/internal/storage"
 )
 
 // handlers holds the dependencies shared by all handler methods. It is

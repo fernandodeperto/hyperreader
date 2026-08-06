@@ -1,4 +1,4 @@
-module github.com/fmendonca/hyperreader
+module github.com/fernandodeperto/hyperreader
 
 go 1.26.4
 

@@ -17,10 +17,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fmendonca/hyperreader/internal/api"
-	"github.com/fmendonca/hyperreader/internal/config"
-	"github.com/fmendonca/hyperreader/internal/storage"
-	"github.com/fmendonca/hyperreader/web"
+	"github.com/fernandodeperto/hyperreader/internal/api"
+	"github.com/fernandodeperto/hyperreader/internal/config"
+	"github.com/fernandodeperto/hyperreader/internal/storage"
+	"github.com/fernandodeperto/hyperreader/web"
 )
 
 // shutdownTimeout bounds graceful shutdown when the context is cancelled,

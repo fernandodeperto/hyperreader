@@ -17,7 +17,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/fmendonca/hyperreader/internal/storage"
+	"github.com/fernandodeperto/hyperreader/internal/storage"
 )
 
 // Store is the subset of the storage layer the API depends on. *storage.Store

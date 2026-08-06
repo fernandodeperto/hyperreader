@@ -4,7 +4,7 @@
 
 ## Runtime
 
-- Go module `github.com/fmendonca/hyperreader`, declared in `go.mod`.
+- Go module `github.com/fernandodeperto/hyperreader`, declared in `go.mod`.
 - Go 1.26.4 is the required language/runtime version.
 - The shipped artifact is one Go binary, `hyperreader`, with `serve` and `mcp` subcommands in `main.go`.
 - Node.js 18+ and npm are development-only requirements for browser tests.
