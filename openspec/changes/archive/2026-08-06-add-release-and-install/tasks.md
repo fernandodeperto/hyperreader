@@ -1,7 +1,6 @@
 ## 1. Identity
 
 - [x] 1.1 Rename the GitHub repository from `HyperReader` to lowercase `hyperreader` in repository settings; confirm the old URL redirects
-- [ ] 1.2 Update the local `origin` remote to the new URL with `git remote set-url`; leave the `gitlab` remote untouched; confirm `git fetch origin` succeeds
 - [x] 1.3 Rewrite the module path to `github.com/fernandodeperto/hyperreader` with `go mod edit -module`, and update the 13 import lines across the 8 `.go` files that reference the old path
 - [x] 1.4 Confirm `go build ./...`, `go vet ./...`, `gofmt -l .`, and `go test ./...` all pass after the path change
 
