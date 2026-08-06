@@ -30,33 +30,38 @@
 
 ## 4. First release
 
-- [ ] 4.1 Tag `v0.1.0` and push the tag
-- [ ] 4.2 Publish the release with `gh release create v0.1.0 dist/*`, uploading the whole `dist/` directory rather than a hand-typed file list, so `SHA256SUMS` cannot be omitted
-- [ ] 4.3 Confirm `https://github.com/fernandodeperto/hyperreader/releases/latest/download/SHA256SUMS` resolves through the redirect
+- [x] 4.1 Tag `v0.1.0` and push the tag
+- [x] 4.2 Publish the release with `gh release create v0.1.0 dist/*`, uploading the whole `dist/` directory rather than a hand-typed file list, so `SHA256SUMS` cannot be omitted
+- [x] 4.3 Confirm `https://github.com/fernandodeperto/hyperreader/releases/latest/download/SHA256SUMS` resolves through the redirect
 
 ## 5. Verification
 
-Design.md notes the script cannot be exercised against `latest/download` until a
-release exists. 5.2-5.7 were therefore run against a local HTTP mirror serving
-the identical `dist/` artifacts, with `HOME` pointed at a sandbox so the real
-`~/.local/bin` was untouched. Only `BASE_URL` differed from the shipped script.
-5.1 and 5.8 need the published release and stay open.
+`git push` over SSH is broken on this machine (`Permission denied (publickey)`
+for a key that is registered on the account), so the tag was created server-side
+by `gh release create --target a1e65c3` rather than by `git push --tags`. The
+resulting `refs/tags/v0.1.0` points at the same commit either route would have
+produced.
 
-- [ ] 5.1 Run the install script end to end on macOS with no prior installation; confirm the binary lands in `~/.local/bin`, runs, and prints the expected usage
+5.1-5.4, 5.7 and 5.8 were run against the published v0.1.0 release. 5.5 needs a
+corrupted manifest, which no real release can supply, so it used a local mirror
+of the identical artifacts; only `BASE_URL` differed from the shipped script.
+5.6 ran the shipped script unmodified with a stubbed `uname`.
+
+- [x] 5.1 Run the install script end to end on macOS with no prior installation; confirm the binary lands in `~/.local/bin`, runs, and prints the expected usage
 - [x] 5.2 Confirm the installed binary carries no `com.apple.quarantine` attribute and runs without a Gatekeeper prompt
 - [x] 5.3 Re-run the install script over the existing installation and confirm it replaces the binary and exits zero
 - [x] 5.4 Run the script in a shell where `~/.local/bin` is absent from `PATH` and confirm the guidance is printed; run it where the directory is on `PATH` and confirm it is not
 - [x] 5.5 Corrupt a downloaded artifact or its manifest entry and confirm the script aborts non-zero with nothing installed
 - [x] 5.6 Force an unsupported platform value and confirm the script fails before downloading
 - [x] 5.7 Paste the emitted MCP configuration into a real MCP client, start `hyperreader serve`, and confirm a `send_html` call succeeds end to end
-- [ ] 5.8 Run `go install github.com/fernandodeperto/hyperreader@v0.1.0` and confirm the proxy resolves the module and the resulting binary runs
+- [x] 5.8 Run `go install github.com/fernandodeperto/hyperreader@v0.1.0` and confirm the proxy resolves the module and the resulting binary runs
 
 ## 6. Documentation
 
-- [ ] 6.1 Add an Install section to the README covering the `curl | sh` one-liner, the download-inspect-run alternative for readers who will not pipe to a shell, and `go install`
-- [ ] 6.2 Replace `/absolute/path/to/hyperreader` in the README's MCP configuration example with a concrete resolved path, and note that the installer prints this entry
-- [ ] 6.3 Record in the README that supported platforms are macOS and Linux on x86-64 and arm64, and that Windows is unsupported
-- [ ] 6.4 Update the README's Requirements section: Go is now needed only for building from source, not for installing
-- [ ] 6.5 Add `install.sh` and `dist/` to the README's project layout listing
-- [ ] 6.6 Document the release procedure for the maintainer: `make release` then `gh release create`, with the tagging convention
-- [ ] 6.7 Confirm every command shown in the README's new sections was actually executed during task group 5
+- [x] 6.1 Add an Install section to the README covering the `curl | sh` one-liner, the download-inspect-run alternative for readers who will not pipe to a shell, and `go install`
+- [x] 6.2 Replace `/absolute/path/to/hyperreader` in the README's MCP configuration example with a concrete resolved path, and note that the installer prints this entry
+- [x] 6.3 Record in the README that supported platforms are macOS and Linux on x86-64 and arm64, and that Windows is unsupported
+- [x] 6.4 Update the README's Requirements section: Go is now needed only for building from source, not for installing
+- [x] 6.5 Add `install.sh` and `dist/` to the README's project layout listing
+- [x] 6.6 Document the release procedure for the maintainer: `make release` then `gh release create`, with the tagging convention
+- [x] 6.7 Confirm every command shown in the README's new sections was actually executed during task group 5

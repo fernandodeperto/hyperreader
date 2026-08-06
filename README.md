@@ -37,17 +37,53 @@ hyperreader mcp  ───────────►  hyperreader serve  ──
 - The web UI polls/streams `GET /api/events` (SSE) so newly ingested
   documents appear live without a manual refresh.
 
+## Install
+
+Supported platforms are macOS and Linux, on x86-64 and arm64. Windows is
+not supported.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fernandodeperto/hyperreader/main/install.sh | sh
+```
+
+The installer detects your platform, downloads the matching executable
+from the latest release, verifies it against that release's
+`SHA256SUMS`, and installs it to `~/.local/bin/hyperreader`. It then
+prints an MCP client entry with the installed path already filled in,
+and, if `~/.local/bin` is not on your `PATH`, the line that adds it.
+
+Fetch it with `curl` rather than a browser. A browser download carries
+`com.apple.quarantine` and macOS refuses to run it without a manual
+override.
+
+If you would rather read the script before running it:
+
+```bash
+curl -fsSL -O https://raw.githubusercontent.com/fernandodeperto/hyperreader/main/install.sh
+less install.sh
+sh install.sh
+```
+
+With a Go toolchain, installing from the module path works too:
+
+```bash
+go install github.com/fernandodeperto/hyperreader@v0.1.0
+```
+
 ## Requirements
 
-- **Go** 1.26+ (see `go.mod`)
-- **Node.js** 18+ and **npm** — only needed for the Playwright e2e suite
+Installing a release needs only `curl` and a shell. Go is required just
+for `go install` and for building from source.
+
+- **Go** 1.26+ (see `go.mod`), for `go install` or a source build
+- **Node.js** 18+ and **npm**, only needed for the Playwright e2e suite
 - SQLite is vendored via `modernc.org/sqlite` (pure Go, no cgo/system SQLite
   required)
 
-## Getting started
+## Build from source
 
 ```bash
-git clone <this-repo>
+git clone https://github.com/fernandodeperto/hyperreader
 cd hyperreader
 go build ./...
 ```
@@ -81,14 +117,15 @@ go run . serve --port 8080 --data-dir /tmp/hyperreader-data
 
 `hyperreader mcp` is meant to be launched by an MCP client (e.g. an AI
 coding assistant), not run interactively — it speaks JSON-RPC over stdio
-and forwards `send_html` calls to a running `serve` process. Point an MCP
-client's config at the built binary:
+and forwards `send_html` calls to a running `serve` process. The
+installer prints this entry with the path already resolved; if you built
+from source, use the absolute path of your own binary:
 
 ```json
 {
   "mcpServers": {
     "hyperreader": {
-      "command": "/absolute/path/to/hyperreader",
+      "command": "/Users/alice/.local/bin/hyperreader",
       "args": ["mcp"]
     }
   }
@@ -128,9 +165,10 @@ that reference the old `html-mcp` binary name or environment variables.
 
 ## Development
 
-Common dev commands are also available as `make` targets — run `make help` for
-the full list (build, test, vet, fmt, check, e2e, clean). The Makefile only wraps
-the raw commands documented below; either approach works.
+Common dev commands are also available as `make` targets. Run `make help` for
+the full list (build, test, vet, fmt, check, e2e, release, dist-clean, clean).
+The Makefile only wraps the raw commands documented below; either
+approach works.
 
 ### Project layout
 
@@ -144,6 +182,8 @@ internal/mcp/              stdio MCP server (send_html tool), forwards to serve'
 web/                       Embedded web UI (index.html, app.js, app.css) via go:embed
 e2e/                       Playwright browser smoke tests against the real serve binary
 skills/generate-html/      Agent skill: renders a long-form report and sends it to HyperReader
+install.sh                 Platform-detecting installer for the latest published release
+dist/                      `make release` output: per-platform executables + SHA256SUMS (gitignored)
 ```
 
 ### Agent skills
@@ -196,6 +236,43 @@ npm run test:e2e
 The e2e suite builds and runs `go run . serve` on port `7421` against a
 throwaway data dir (`./.e2e-data`, gitignored), so it can run alongside a
 dev instance on the default port `7420` without conflict.
+
+### Releasing
+
+Cross-compile the published targets and their checksum manifest:
+
+```bash
+make release
+```
+
+That writes `dist/hyperreader-<os>-<arch>` for `darwin/arm64`,
+`darwin/amd64`, `linux/amd64` and `linux/arm64`, each built with
+`-trimpath -ldflags="-s -w"`, alongside `dist/SHA256SUMS`. Unlike `make
+build`, release executables are stripped, so keep using `make build` for
+development where panic traces need symbol names.
+
+Check the manifest before publishing. The entries are bare filenames, so
+verify from inside `dist/`:
+
+```bash
+(cd dist && shasum -a 256 -c SHA256SUMS)
+```
+
+Publish the whole directory rather than a hand-typed file list, so
+`SHA256SUMS` cannot be left out:
+
+```bash
+gh release create v0.1.0 dist/* --target "$(git rev-parse HEAD)" \
+  --title v0.1.0 --notes-file notes.md
+```
+
+`gh` creates the tag as part of the release, so no separate `git tag` and
+`git push --tags` is needed. Tags follow `vMAJOR.MINOR.PATCH`. Drop
+`--notes-file` to have `gh` open an editor instead.
+
+The install script always fetches whatever the newest release is, through
+GitHub's `releases/latest/download/` redirect, so publishing a newer tag
+is all that is required to roll an update out.
 
 ### HTTP API reference
 
