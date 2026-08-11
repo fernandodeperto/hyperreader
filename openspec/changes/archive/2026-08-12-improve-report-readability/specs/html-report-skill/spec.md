@@ -1,21 +1,4 @@
-# html-report-skill Specification
-
-## Purpose
-
-Defines the behavior contract for the `generate-html` skill: that it can resolve its own assets, that the reports it delivers render every documented component correctly in both colour themes, that a report carrying unfilled shell placeholders can never be delivered, and that the handover addresses the report itself rather than a listing of reports.
-
-## Requirements
-
-### Requirement: Skill resolves its own assets
-The skill SHALL reference its template and reference files under its own registered skill id. No step of the workflow SHALL depend on a skill id other than the one declared in the skill's own `name:` field.
-
-#### Scenario: Template read during the workflow
-- **WHEN** the workflow reads the report template
-- **THEN** the read resolves against the skill's own id and returns the template contents
-
-#### Scenario: Skill installed with no sibling skills present
-- **WHEN** the skill is the only skill installed, with no other agent skill registered
-- **THEN** every asset the workflow reads still resolves, and the workflow runs to completion
+## MODIFIED Requirements
 
 ### Requirement: Unfilled shell placeholders cannot reach a delivered report
 The template ships placeholders in its `<title>`, masthead, contents list, external-resource slot, body slot, and footer. Every placeholder SHALL be written in a single delimited form that cannot occur in report content. The workflow SHALL verify that no placeholder remains before delivery, and SHALL abort delivery when any remains. The check SHALL NOT abort delivery of a report whose content merely resembles a placeholder.
@@ -64,6 +47,34 @@ Every component in the catalog SHALL produce its documented visual result in bot
 - **WHEN** a report containing a chart, a diagram, or highlighted code is switched from one theme to the other after those components have rendered
 - **THEN** each of them matches the newly active theme, with no component left in the previous theme's colours
 
+### Requirement: Saved theme applies before first paint
+The theme preference a report honours SHALL be the one the reader set in the reader application, and SHALL be applied before the page first paints, so no report opens in the wrong theme and then corrects itself.
+
+#### Scenario: Reader with a stored dark preference opens a report
+- **WHEN** a reader who previously selected dark opens any report
+- **THEN** the first painted frame is dark, with no visible flash of the light theme
+
+#### Scenario: Reader sets the theme in the reader application, then opens a report
+- **WHEN** a reader selects dark in the reader's document list and then opens a document
+- **THEN** that document opens dark, without the reader setting the theme a second time
+
+#### Scenario: Reader changes the theme from inside a report
+- **WHEN** a reader toggles the theme while reading a report and then returns to the document list
+- **THEN** the list is in the theme they just chose
+
+### Requirement: Section numbering has a single source
+Exactly one mechanism SHALL produce every rendering of a section's number. A number MAY be rendered in more than one place, and all renderings SHALL agree. Guidance SHALL NOT instruct authors to number a section by hand where numbering is already generated.
+
+#### Scenario: Report with several sections
+- **WHEN** a multi-section report is rendered
+- **THEN** each contents entry and its section heading show the same number for that section
+
+#### Scenario: Sections are reordered
+- **WHEN** the order of sections in a composed report changes
+- **THEN** every rendering of every section number follows the new order, with no hand edit
+
+## ADDED Requirements
+
 ### Requirement: External resources are conditional and never carry the argument
 The skill SHALL define a fixed, enumerated set of capabilities that may load an external resource. A report that does not use a capability SHALL NOT load that capability's resource. With every external resource unavailable, a delivered report SHALL remain readable and SHALL retain every claim, number and relationship it asserts. No external resource SHALL supply layout or colour.
 
@@ -101,39 +112,6 @@ At every viewport width, in both themes, a heading SHALL render at a larger type
 - **WHEN** a report is rendered at the narrowest supported width
 - **THEN** the same relationship holds
 
-### Requirement: Saved theme applies before first paint
-The theme preference a report honours SHALL be the one the reader set in the reader application, and SHALL be applied before the page first paints, so no report opens in the wrong theme and then corrects itself.
-
-#### Scenario: Reader with a stored dark preference opens a report
-- **WHEN** a reader who previously selected dark opens any report
-- **THEN** the first painted frame is dark, with no visible flash of the light theme
-
-#### Scenario: Reader sets the theme in the reader application, then opens a report
-- **WHEN** a reader selects dark in the reader's document list and then opens a document
-- **THEN** that document opens dark, without the reader setting the theme a second time
-
-#### Scenario: Reader changes the theme from inside a report
-- **WHEN** a reader toggles the theme while reading a report and then returns to the document list
-- **THEN** the list is in the theme they just chose
-
-### Requirement: Section numbering has a single source
-Exactly one mechanism SHALL produce every rendering of a section's number. A number MAY be rendered in more than one place, and all renderings SHALL agree. Guidance SHALL NOT instruct authors to number a section by hand where numbering is already generated.
-
-#### Scenario: Report with several sections
-- **WHEN** a multi-section report is rendered
-- **THEN** each contents entry and its section heading show the same number for that section
-
-#### Scenario: Sections are reordered
-- **WHEN** the order of sections in a composed report changes
-- **THEN** every rendering of every section number follows the new order, with no hand edit
-
-### Requirement: Contents list demonstrates multiple sections
-The template and the worked example SHALL each demonstrate a contents list of more than one entry, since a report short enough to hold one section is out of the skill's stated scope.
-
-#### Scenario: Author follows the worked example
-- **WHEN** an author composes a report by following the example's contents-list idiom
-- **THEN** the idiom extends to an arbitrary number of sections without reinterpretation
-
 ### Requirement: Contents navigation survives a viewport change
 The contents navigation SHALL be usable at every viewport width, and SHALL remain usable after the viewport changes width, without a reload.
 
@@ -145,17 +123,6 @@ The contents navigation SHALL be usable at every viewport width, and SHALL remai
 - **WHEN** a report is opened at a width above the sidebar breakpoint and the window is then narrowed below it
 - **THEN** the contents navigation presents its links and is operable
 
-### Requirement: Handover addresses the delivered report
-On success the skill SHALL hand the user a URL that opens the report just delivered, not a listing of all reports.
-
-#### Scenario: Report sent successfully
-- **WHEN** delivery succeeds and returns an identifier for the stored report
-- **THEN** the handover states a URL that resolves to that report's own content
-
-#### Scenario: Delivery fails
-- **WHEN** delivery fails because the reader service is unreachable
-- **THEN** the skill states the error rather than a URL
-
 ### Requirement: A printed report carries the evidence the screen report carries
 A report printed or exported to PDF SHALL include the content held behind disclosures on screen, and SHALL reproduce the colour that carries meaning.
 
@@ -166,17 +133,3 @@ A report printed or exported to PDF SHALL include the content held behind disclo
 #### Scenario: Report with coloured code is printed
 - **WHEN** a report containing a coloured diff or highlighted code is printed
 - **THEN** the colours that distinguish added, removed and commented lines are reproduced rather than flattened
-
-### Requirement: Guidance describes the workflow the skill actually performs
-Reference material SHALL describe the composition model the workflow uses. It SHALL NOT instruct the author to edit files on disk when the workflow composes in memory and writes no file.
-
-#### Scenario: Author reads the component catalog before composing
-- **WHEN** an author reads the catalog's opening guidance on where to put a one-off style rule
-- **THEN** that guidance is consistent with in-memory composition and names no on-disk copy to edit
-
-### Requirement: Skill is discoverable
-The skill SHALL be discoverable from the repository's own documentation, and SHALL sit where this repository keeps its agent skills.
-
-#### Scenario: Contributor looks for the repository's agent skills
-- **WHEN** a contributor reads the repository README and browses the skills location
-- **THEN** the skill is listed with a one-line description and is found alongside the repository's other agent skills

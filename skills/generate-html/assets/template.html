@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>REPORT TITLE</title>
+<title>{{TITLE}}</title>
+{{EXTERNAL}}
 <style>
 /* ---------- tokens ---------- */
 :root {
@@ -21,14 +22,26 @@
   --violet:   light-dark(#8250df, #bc8cff);
   --shadow-color: light-dark(rgb(0 0 0 / .08), rgb(0 0 0 / .5));
 
-  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  --measure: 68ch;
+  --sans: "IBM Plex Sans Variable", "Plex Sans Fallback", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --measure: 66ch;
   --radius: 10px;
   --gap: 1rem;
 }
 html[data-theme="light"] { color-scheme: light; }
 html[data-theme="dark"]  { color-scheme: dark; }
+
+/* Metric-matched fallback for --sans: measured against the Arial that
+   actually resolves (canvas fontBoundingBoxAscent/Descent and rendered
+   line width at reading size), not copied from a table. Keeps the
+   font-display: swap repaint from reflowing the page. */
+@font-face {
+  font-family: "Plex Sans Fallback";
+  src: local("Arial");
+  ascent-override: 102.5%;
+  descent-override: 27.5%;
+  size-adjust: 100.7%;
+}
 
 /* ---------- base ---------- */
 * { box-sizing: border-box; }
@@ -40,19 +53,26 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--sans);
-  font-size: clamp(1rem, .97rem + .15vw, 1.0625rem);
-  line-height: 1.65;
+  font-size: clamp(1rem, .97rem + .2vw, 1.1rem);
+  line-height: 1.6;
   -webkit-text-size-adjust: 100%;
   text-rendering: optimizeLegibility;
 }
 .wrap { width: min(100%, 74rem); margin-inline: auto; padding: clamp(1.5rem, 1rem + 2vw, 3rem) clamp(1rem, .5rem + 2vw, 2rem) 5rem; }
 
 h1, h2, h3, h4 { line-height: 1.25; text-wrap: balance; letter-spacing: -.015em; }
-h1 { font-size: clamp(1.9rem, 1.45rem + 1.9vw, 2.6rem); margin: 0 0 .5rem; }
-h2 { font-size: clamp(1.35rem, 1.2rem + .6vw, 1.6rem); margin: 3rem 0 1rem; padding-bottom: .45rem; border-bottom: 1px solid var(--border); }
-h3 { font-size: 1.12rem; margin: 2rem 0 .6rem; }
-h4 { font-size: .8rem; margin: 1.4rem 0 .4rem; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
-:is(h2, h3, h4)[id] { scroll-margin-top: 1.5rem; }
+h1 { font-size: clamp(1.95rem, 1.5rem + 1.9vw, 2.65rem); margin: 0 0 .5rem; }
+h2 { font-size: clamp(1.4rem, 1.25rem + .6vw, 1.65rem); margin: 3rem 0 1rem; padding-bottom: .45rem; border-bottom: 1px solid var(--border); }
+h3 { font-size: clamp(1.15rem, 1.05rem + .3vw, 1.3rem); margin: 2rem 0 .6rem; }
+h4 { font-size: .82rem; margin: 1.4rem 0 .4rem; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+section[id] { scroll-margin-top: 1.5rem; }
+
+/* Section numbering: one counter, driven by document order, shared with
+   the contents list below. A number rendered twice cannot disagree with
+   itself. */
+main { counter-reset: section; }
+section { counter-increment: section; }
+section > h2:first-child::before { content: counter(section) "."; color: var(--dim); margin-right: .35em; font-variant-numeric: tabular-nums; }
 
 p, ul, ol, blockquote { max-width: var(--measure); }
 p { margin: 0 0 .9rem; }
@@ -66,7 +86,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2.5rem 0; }
 blockquote { margin: 1rem 0; padding: .1rem 0 .1rem 1rem; border-left: 3px solid var(--border); color: var(--dim); }
 
 /* ---------- masthead ---------- */
-.masthead { padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+.masthead { padding-bottom: 1.5rem; padding-right: 3.5rem; border-bottom: 1px solid var(--border); }
 .eyebrow { color: var(--accent); font-size: .78rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin: 0 0 .6rem; }
 .lede { font-size: clamp(1.05rem, 1rem + .35vw, 1.25rem); color: var(--dim); line-height: 1.5; margin: 0 0 1rem; max-width: 60ch; text-wrap: pretty; }
 .meta { font-size: .85rem; color: var(--dim); margin: 0; display: flex; flex-wrap: wrap; gap: .4rem 0; max-width: none; }
@@ -82,7 +102,7 @@ blockquote { margin: 1rem 0; padding: .1rem 0 .1rem 1rem; border-left: 3px solid
   .toc summary::-webkit-details-marker { display: none; }
 }
 .toc { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .9rem 1.1rem; font-size: .875rem; }
-.toc summary { font-weight: 650; cursor: pointer; color: var(--dim); font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; }
+.toc summary { font-weight: 650; cursor: pointer; color: var(--dim); font-size: 1.05em; letter-spacing: .08em; text-transform: uppercase; }
 .toc ol { list-style: none; counter-reset: toc; margin: .7rem 0 0; padding: 0; }
 .toc li { counter-increment: toc; margin: 0; }
 .toc a { display: block; padding: .28rem 0 .28rem 1.6rem; text-indent: -1.6rem; color: var(--text); text-decoration: none; border-left: 2px solid transparent; }
@@ -111,7 +131,7 @@ blockquote { margin: 1rem 0; padding: .1rem 0 .1rem 1rem; border-left: 3px solid
   border-radius: 8px; padding: .8rem 1rem; margin: 1.2rem 0;
 }
 .callout > :last-child { margin-bottom: 0; }
-.callout .t { display: block; font-weight: 650; color: var(--hue, var(--accent)); margin-bottom: .25rem; font-size: .92rem; }
+.callout .t { display: block; font-weight: 650; color: var(--hue, var(--accent)); margin-bottom: .25rem; font-size: 1.1em; }
 .callout.tip    { --hue: var(--green); }
 .callout.warn   { --hue: var(--amber); }
 .callout.danger { --hue: var(--red); }
@@ -122,7 +142,7 @@ blockquote { margin: 1rem 0; padding: .1rem 0 .1rem 1rem; border-left: 3px solid
 .grid.wide { grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.1rem; box-shadow: 0 1px 3px var(--shadow-color); }
 .card > :last-child { margin-bottom: 0; }
-.card h3 { margin: 0 0 .5rem; font-size: 1rem; }
+.card h3 { margin: 0 0 .5rem; }
 .card p, .card ul, .card ol { max-width: none; }
 .card .hd { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: .5rem; }
 .card .hd h3 { margin: 0; }
@@ -136,7 +156,7 @@ blockquote { margin: 1rem 0; padding: .1rem 0 .1rem 1rem; border-left: 3px solid
 .badge {
   display: inline-block; font-size: .7rem; font-weight: 700; letter-spacing: .05em;
   padding: .12rem .45rem; border-radius: 5px; vertical-align: .1em; white-space: nowrap;
-  background: color-mix(in oklab, var(--hue, var(--dim)) 16%, transparent);
+  background: color-mix(in oklab, var(--hue, var(--dim)) 10%, transparent);
   color: var(--hue, var(--dim));
   border: 1px solid color-mix(in oklab, var(--hue, var(--dim)) 35%, transparent);
 }
@@ -149,7 +169,7 @@ blockquote { margin: 1rem 0; padding: .1rem 0 .1rem 1rem; border-left: 3px solid
 .scroll table { margin: 0; border: 0; }
 table { border-collapse: collapse; width: 100%; font-size: .9rem; margin: 1.1rem 0; }
 th, td { text-align: left; vertical-align: top; padding: .5rem .75rem; border-bottom: 1px solid var(--border); }
-thead th { background: var(--surface2); font-weight: 650; white-space: nowrap; }
+thead th { background: var(--surface2); font-weight: 650; font-size: 1.05em; white-space: nowrap; }
 tbody tr:last-child td { border-bottom: 0; }
 tbody tr:hover td { background: var(--surface); }
 .n { text-align: right; font-variant-numeric: tabular-nums; }
@@ -162,10 +182,24 @@ code, kbd, samp { font-family: var(--mono); font-size: .87em; }
 }
 pre {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: .85rem 1rem; overflow-x: auto; font-size: .82rem; line-height: 1.55; margin: 1rem 0; tab-size: 2;
+  padding: .85rem 1rem; overflow-x: auto; font-size: .9rem; line-height: 1.55; margin: 1rem 0; tab-size: 2;
 }
 pre code { background: none; border: 0; padding: 0; font-size: inherit; }
 pre .add { color: var(--green); } pre .del { color: var(--red); } pre .cm { color: var(--dim); }
+
+/* highlight.js token map onto the palette, not a stock theme: comments
+   dim, strings a hue that is neither green (confirmed) nor red (failure),
+   keywords by weight. Separate namespace from .add/.del/.cm above, which
+   stay for hand-authored diffs. Inert without the hljs script. */
+.hljs-comment, .hljs-quote { color: var(--dim); }
+.hljs-string, .hljs-doctag, .hljs-regexp, .hljs-template-tag { color: var(--violet); }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-section, .hljs-link, .hljs-built_in { font-weight: 700; }
+.hljs-title, .hljs-name, .hljs-attr, .hljs-symbol, .hljs-bullet, .hljs-attribute { color: var(--accent); }
+.hljs-number, .hljs-meta, .hljs-variable { color: var(--amber); }
+.hljs-deletion { color: var(--red); }
+.hljs-addition { color: var(--green); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
 
 /* ---------- steps / timeline ---------- */
 .steps { list-style: none; counter-reset: step; padding: 0; margin: 1.2rem 0; max-width: none; }
@@ -177,26 +211,56 @@ pre .add { color: var(--green); } pre .del { color: var(--red); } pre .cm { colo
   background: var(--surface2); border: 1px solid var(--border); color: var(--dim);
   font-size: .78rem; font-weight: 700; font-variant-numeric: tabular-nums;
 }
-.steps .st { display: block; font-weight: 650; margin-bottom: .2rem; }
+.steps .st { display: block; font-weight: 650; font-size: 1.05em; margin-bottom: .2rem; }
 
 /* ---------- figures + meters ---------- */
 figure { margin: 1.4rem 0; }
 figure svg, figure img { width: 100%; height: auto; display: block; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
-figcaption { color: var(--dim); font-size: .82rem; margin-top: .5rem; max-width: var(--measure); }
+figure .chart { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+figure .chart svg { border: 0; border-radius: 0; }
+figure .chart p { color: var(--dim); font-size: .875rem; margin: 0; padding: .75rem; }
+figcaption { color: var(--dim); font-size: .875rem; margin-top: .5rem; max-width: var(--measure); }
 .meter { height: .5rem; border-radius: 99px; background: var(--surface2); overflow: hidden; margin: .4rem 0; }
 .meter > span { display: block; height: 100%; background: var(--hue, var(--accent)); border-radius: inherit; }
 
+/* Chart libraries inject their own stylesheet at render time with stock
+   colours (stock grey axis text, stock light gridlines, a permanently
+   dark tooltip); these lose to plain source order once re-rendered. Beat
+   them on specificity instead, so the fix survives every themechange
+   re-render regardless of injection order. Selectors verified against
+   Frappe Charts' actual rendered DOM, not guessed. */
+.chart .chart-container .axis,
+.chart .chart-container .chart-label,
+.chart .chart-container .legend-dataset-text { fill: var(--dim); }
+/* stroke needs !important: Frappe sets it as an inline style attribute
+   for its enter transition, which beats specificity alone. */
+.chart .chart-container .axis line,
+.chart .chart-container .chart-label line { stroke: var(--border) !important; }
+.chart .chart-container .graph-svg-tip {
+  background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+}
+.chart .chart-container .graph-svg-tip strong { color: var(--text); }
+.chart .chart-container .graph-svg-tip .svg-pointer { border-top-color: var(--surface2); }
+
+/* mermaid: unprocessed source keeps normal <pre> chrome (this is the
+   offline fallback, and it should look like the other code blocks on
+   the page, not sit naked); a successful render strips it. useMaxWidth
+   is disabled in the initialize() call, so a wide diagram scrolls at
+   its own size instead of shrinking its text to illegibility. */
+pre.mermaid { overflow-x: auto; }
+pre.mermaid[data-processed] { background: none; border: 0; padding: 0; margin: 1.4rem 0; }
+
 /* ---------- disclosure ---------- */
 details.more { border: 1px solid var(--border); border-radius: var(--radius); padding: .7rem 1rem; margin: 1.2rem 0; background: var(--surface); }
-details.more > summary { cursor: pointer; font-weight: 650; font-size: .92rem; }
+details.more > summary { cursor: pointer; font-weight: 650; font-size: 1.05em; }
 details.more[open] > summary { margin-bottom: .7rem; padding-bottom: .5rem; border-bottom: 1px solid var(--border); }
 
 /* ---------- theme toggle + footer ---------- */
 .theme {
   position: fixed; top: .8rem; right: .8rem; z-index: 10;
-  width: 2.2rem; height: 2.2rem; border-radius: 50%; cursor: pointer;
+  width: 2.75rem; height: 2.75rem; border-radius: 50%; cursor: pointer;
   background: var(--surface); border: 1px solid var(--border); color: var(--dim);
-  font-size: .95rem; line-height: 1; display: grid; place-items: center; box-shadow: 0 1px 3px var(--shadow-color);
+  font-size: 1.1rem; line-height: 1; display: grid; place-items: center; box-shadow: 0 1px 3px var(--shadow-color);
 }
 .theme:hover { color: var(--text); }
 footer { margin-top: 4rem; padding-top: 1.2rem; border-top: 1px solid var(--border); color: var(--dim); font-size: .82rem; }
@@ -211,15 +275,18 @@ footer { margin-top: 4rem; padding-top: 1.2rem; border-top: 1px solid var(--bord
   .layout { display: block; }
   body { font-size: 10.5pt; }
   h2 { break-after: avoid; }
-  .card, .callout, .banner, figure, table, .steps > li { break-inside: avoid; }
-  .banner, .callout, .badge, .stat, thead th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .card, .callout, .banner, figure, table, .steps > li, section { break-inside: avoid; }
+  .masthead { padding-right: 0; }
+  .banner, .callout, .badge, .stat, thead th, pre { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   a { color: inherit; text-decoration: none; }
 }
 </style>
 <script>
 // Runs before first paint: a stored preference must not arrive after the
-// page has already painted the wrong theme.
-const saved = localStorage.getItem("report-theme");
+// page has already painted the wrong theme. Reads the reader's own
+// preference key, the one the HyperReader app itself writes, so a report
+// opens in the theme the reader already chose.
+const saved = localStorage.getItem("hyperreader-theme");
 if (saved) document.documentElement.dataset.theme = saved;
 </script>
 </head>
@@ -229,32 +296,46 @@ if (saved) document.documentElement.dataset.theme = saved;
 <div class="wrap">
 
 <header class="masthead">
-  <p class="eyebrow">REPORT KIND</p>
-  <h1>REPORT TITLE</h1>
-  <p class="lede">LEDE: one or two sentences stating the outcome, not the topic.</p>
-  <p class="meta"><span>DATE</span><span>SCOPE</span><span>SOURCES</span></p>
+  <p class="eyebrow">{{KIND}}</p>
+  <h1>{{TITLE}}</h1>
+  <p class="lede">{{LEDE}}</p>
+  <p class="meta"><span>{{DATE}}</span><span>{{SCOPE}}</span><span>{{SOURCES}}</span></p>
 </header>
 
 <div class="layout">
   <details class="toc">
     <summary>Contents</summary>
     <nav><ol>
-      <li><a href="#section-1">Section one</a></li>
+      {{CONTENTS}}
     </ol></nav>
   </details>
 
   <main id="main">
-<!-- CONTENT -->
+{{CONTENT}}
   </main>
 </div>
 
 <footer>
-  <p>Generated DATE. METHOD AND CAVEATS.</p>
+  <p>Generated {{DATE}}. {{CAVEATS}}</p>
 </footer>
 </div>
 
 <script>
 const root = document.documentElement;
+
+// Palette variables are declared with light-dark()/color-mix(), which
+// getComputedStyle().getPropertyValue() returns as unparsed function
+// text, not a colour. External libraries (mermaid, a chart library)
+// need an actual resolved colour string; this reads one the only
+// reliable way, by letting the cascade resolve it on a real element.
+const resolveColor = (name) => {
+  const probe = document.createElement("span");
+  probe.style.color = `var(${name})`;
+  document.body.appendChild(probe);
+  const value = getComputedStyle(probe).color;
+  probe.remove();
+  return value;
+};
 
 const themeBtn = document.querySelector(".theme");
 const syncThemeBtn = () => {
@@ -266,26 +347,106 @@ syncThemeBtn();
 themeBtn.addEventListener("click", () => {
   const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
   root.dataset.theme = dark ? "light" : "dark";
-  localStorage.setItem("report-theme", root.dataset.theme);
+  localStorage.setItem("hyperreader-theme", root.dataset.theme);
   syncThemeBtn();
+  // Charts and mermaid render their own colours from the palette at
+  // render time; this is the one event that tells them to do it again.
+  // Highlighting needs no listener: its map is expressed in palette
+  // variables, which flip natively with no re-render.
+  document.dispatchEvent(new Event("themechange"));
 });
 
-if (matchMedia("(min-width: 64rem)").matches) document.querySelector(".toc").open = true;
+// Sidebar contents: forced open on the wide layout, where it never needs
+// a manual toggle, and closed again on the way back down rather than
+// left expanded above content it no longer has room for. A `change`
+// listener, not a one-shot check, so resizing across the breakpoint
+// after load doesn't leave the sidebar dead in either direction.
+const wideLayout = matchMedia("(min-width: 64rem)");
+const syncToc = (e) => { document.querySelector(".toc").open = e.matches; };
+syncToc(wideLayout);
+wideLayout.addEventListener("change", syncToc);
 
-const links = new Map([...document.querySelectorAll('.toc a[href^="#"]')].map(a => [a.hash.slice(1), a]));
-const ids = [...links.keys()];
-const spy = () => {
-  let current = null;
-  const atBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 2;
-  for (const id of ids) {
-    const el = document.getElementById(id);
-    if (el && el.getBoundingClientRect().top <= 120) current = id;
-  }
-  if (atBottom && ids.length) current = ids[ids.length - 1];
-  for (const a of links.values()) a.classList.toggle("active", a.hash.slice(1) === current);
-};
-addEventListener("scroll", spy, { passive: true });
-spy();
+// Contents highlight: an IntersectionObserver over each section's own
+// bounds, biased to a band near the top of the viewport, replaces a
+// getBoundingClientRect scan run on every scroll event. No separate
+// "at bottom" case: once the last section leaves the band, its link
+// simply keeps the highlight it already has, because nothing later in
+// the document ever enters the band to take it.
+const tocLinks = new Map([...document.querySelectorAll('.toc a[href^="#"]')].map(a => [a.hash.slice(1), a]));
+const setActiveSection = (id) => { for (const [key, a] of tocLinks) a.classList.toggle("active", key === id); };
+const sectionSpy = new IntersectionObserver((entries) => {
+  const visible = entries.filter((e) => e.isIntersecting);
+  if (!visible.length) return;
+  visible.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+  setActiveSection(visible[0].target.id);
+}, { rootMargin: "-15% 0px -75% 0px" });
+for (const id of tocLinks.keys()) {
+  const el = document.getElementById(id);
+  if (el) sectionSpy.observe(el);
+}
+
+// Print carries the evidence the screen shows: open every disclosure
+// before printing, restore what the reader had open afterward.
+let disclosureState = null;
+addEventListener("beforeprint", () => {
+  const all = [...document.querySelectorAll("details")];
+  disclosureState = all.map((d) => d.open);
+  for (const d of all) d.open = true;
+});
+addEventListener("afterprint", () => {
+  if (!disclosureState) return;
+  const all = [...document.querySelectorAll("details")];
+  all.forEach((d, i) => { d.open = disclosureState[i]; });
+  disclosureState = null;
+});
+
+// Syntax highlighting: only code blocks that opt in with a `language-*`
+// class are touched, so hand-coloured .add/.del/.cm diff blocks (no such
+// class) are never re-tokenized. No-ops entirely when the script didn't
+// load (offline, or the report has no highlighted code).
+if (window.hljs) {
+  document.querySelectorAll("pre code[class*='language-']").forEach((el) => hljs.highlightElement(el));
+}
+
+// Mermaid: re-render on theme change by restoring each diagram's original
+// source (mermaid replaces element content with rendered SVG and will not
+// touch an already-processed node otherwise) and re-initializing with
+// theme variables read from the resolved palette.
+if (window.mermaid) {
+  const mermaidTheme = () => ({
+    startOnLoad: false,
+    theme: "base",
+    // A diagram wider than its column shrinks to fit by default, which
+    // is how axis-scale text becomes illegible on a narrow viewport.
+    // Render at natural size instead; pre.mermaid's own overflow-x
+    // scrolls it, the same way an oversized table already scrolls.
+    flowchart: { useMaxWidth: false },
+    sequence: { useMaxWidth: false },
+    state: { useMaxWidth: false },
+    themeVariables: {
+      background: resolveColor("--bg"),
+      primaryColor: resolveColor("--surface"),
+      primaryBorderColor: resolveColor("--border"),
+      primaryTextColor: resolveColor("--text"),
+      secondaryColor: resolveColor("--surface2"),
+      lineColor: resolveColor("--dim"),
+      textColor: resolveColor("--text"),
+      fontFamily: getComputedStyle(root).getPropertyValue("--sans"),
+    },
+  });
+  const diagrams = [...document.querySelectorAll("pre.mermaid")];
+  for (const el of diagrams) el.dataset.source = el.textContent;
+  const renderMermaid = () => {
+    mermaid.initialize(mermaidTheme());
+    for (const el of diagrams) {
+      el.removeAttribute("data-processed");
+      el.textContent = el.dataset.source;
+    }
+    mermaid.run({ nodes: diagrams, suppressErrors: true });
+  };
+  renderMermaid();
+  document.addEventListener("themechange", renderMermaid);
+}
 </script>
 </body>
 </html>
