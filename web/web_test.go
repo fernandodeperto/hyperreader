@@ -122,70 +122,89 @@ func TestHandler_TableAndSearchSurfaces(t *testing.T) {
 	}
 }
 
-// TestHandler_NewTabSurfaces is the build-time gate proving the embedded UI
-// opens a page's raw rendered HTML in a new browser tab via
-// GET /api/pages/{slug}/content with zero app chrome, and that no in-app
-// detail-view/iframe/Back surfaces exist. It asserts the app.js wiring
-// (window.open to the content endpoint with _blank, row click + keydown
-// activation) and guards against a regression that silently reintroduces
-// a removed iframe/view. The live browser behavior (click opens a new tab,
-// script executes unsandboxed at top level) is proven by the Playwright
-// specs; this gate only proves the surfaces are embedded, so a regression
-// that strips them fails the Go test suite (not just a later browser
-// check).
-func TestHandler_NewTabSurfaces(t *testing.T) {
+// TestHandler_SameTabReaderSurfaces is the build-time gate for the embedded
+// page reader. Browser tests cover behavior; this test keeps the semantic
+// home link, trusted iframe, and same-tab client wiring in the Go suite.
+func TestHandler_SameTabReaderSurfaces(t *testing.T) {
 	html := serveBody(t, "/")
-	// The removed detail-view surfaces must be GONE entirely (regression
-	// guard — a reintroduction that hides rather than deletes them would
-	// re-add these and fail here).
-	for _, gone := range []string{
-		`id="detail-view"`,
-		`id="detail-frame"`,
-		`id="back-button"`,
-		`<iframe`,
+	for _, want := range []string{
+		`<a id="home-link" href="/">HyperReader</a>`,
+		`id="top-bar-context"`,
+		`id="search"`,
+		`id="selected-slug" hidden`,
+		`id="live-status"`,
+		`id="theme-toggle"`,
+		`id="table-view"`,
+		`id="page-view"`,
+		`<iframe id="page-frame" title="Stored page" src="about:blank"></iframe>`,
 	} {
-		if strings.Contains(html, gone) {
-			t.Errorf("index.html must not contain removed surface %q", gone)
+		if !strings.Contains(html, want) {
+			t.Errorf("index.html missing %q", want)
 		}
 	}
+	for _, pair := range [][2]string{
+		{`id="top-bar-context"`, `id="live-status"`},
+		{`id="live-status"`, `id="theme-toggle"`},
+	} {
+		if strings.Index(html, pair[0]) >= strings.Index(html, pair[1]) {
+			t.Errorf("index.html must place %q before %q", pair[0], pair[1])
+		}
+	}
+	if strings.Contains(html, `id="page-frame" sandbox`) {
+		t.Error("index.html must keep the trusted page iframe unsandboxed")
+	}
 
-	// app.js must wire the new-tab open: the content endpoint, window.open
-	// with _blank, and row activation via click + keydown delegation.
 	js := serveBody(t, "/app.js")
 	for _, want := range []string{
-		`/content`,                   // GET /api/pages/{slug}/content
-		`window.open`,                // opens the content endpoint in a new tab
-		`_blank`,                     // target is a new tab, not in-app
-		`encodeURIComponent`,         // slug is URL-encoded into the path
-		`addEventListener("click"`,   // row click delegation
-		`addEventListener("keydown"`, // row keyboard activation (Enter/Space)
+		`view: "table"`,
+		`selectedSlug`,
+		`document.documentElement.dataset.view`,
+		`search.hidden = showingPage`,
+		`selectedSlug.hidden = !showingPage`,
+		`frame.src = API + "/" + encodeURIComponent(slug) + "/content"`,
+		`frame.src = "about:blank"`,
+		`addEventListener("click"`,
+		`addEventListener("keydown"`,
+		`addEventListener("load", onPageFrameLoad)`,
+		`querySelectorAll(".theme")`,
+		`doc.documentElement.dataset.theme = document.documentElement.dataset.theme`,
+		`new Event("themechange")`,
 	} {
 		if !strings.Contains(js, want) {
 			t.Errorf("app.js missing %q", want)
 		}
 	}
+	for _, gone := range []string{`window.open`, `"_blank"`} {
+		if strings.Contains(js, gone) {
+			t.Errorf("app.js must not contain new-tab wiring %q", gone)
+		}
+	}
 }
 
-// TestHandler_LiveUpdateSurfaces is the build-time gate proving the
-// embedded UI contains the live-SSE-update surfaces this app claims to
-// ship — the #live-status indicator (with its data-state attribute) in
-// index.html, and the app.js wiring that subscribes to GET /api/events via
-// a native EventSource, mirrors its lifecycle into #live-status, listens
-// for both page-created and page-updated events, and guards against a
-// malformed event payload (invalid JSON, or JSON that isn't a page-shaped
-// object) by logging via console.error and skipping rather than throwing.
-// The live browser behavior (a page appears with no refresh) is proven by
-// the Playwright spec; this gate only proves the surfaces are embedded, so
-// a regression that strips them fails the Go test suite (not just a later
-// browser check).
+// TestHandler_LiveUpdateSurfaces is the build-time gate proving the embedded
+// UI contains the live-SSE-update surfaces: an icon with accessible state
+// text, CSS colors for live and non-live states, and native EventSource
+// wiring that handles page-created, page-updated, and malformed events.
 func TestHandler_LiveUpdateSurfaces(t *testing.T) {
 	html := serveBody(t, "/")
 	for _, want := range []string{
 		`id="live-status"`,
 		`data-state="connecting"`,
+		`aria-label="Connecting"`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("index.html missing %q", want)
+		}
+	}
+
+	css := serveBody(t, "/app.css")
+	for _, want := range []string{
+		`--status-live:`,
+		`--status-offline:`,
+		`#live-status[data-state="live"]`,
+	} {
+		if !strings.Contains(css, want) {
+			t.Errorf("app.css missing %q", want)
 		}
 	}
 
@@ -196,10 +215,14 @@ func TestHandler_LiveUpdateSurfaces(t *testing.T) {
 		`addEventListener("page-created"`, // creation event listener
 		`addEventListener("page-updated"`, // patch event listener
 		`dataset.state`,                   // drives #live-status's data-state attribute
-		`JSON.parse`,                      // decodes the event payload
-		`catch`,                           // malformed (non-JSON) payload is caught, not thrown
-		`console.error`,                   // malformed payload is logged, not swallowed silently
-		`unshift`,                         // page prepended as the new top row
+		`aria-label`,                      // state stays available without visible badge text
+		`"Live"`,
+		`"Connecting"`,
+		`"Reconnecting"`,
+		`JSON.parse`,    // decodes the event payload
+		`catch`,         // malformed (non-JSON) payload is caught, not thrown
+		`console.error`, // malformed payload is logged, not swallowed silently
+		`unshift`,       // page prepended as the new top row
 	} {
 		if !strings.Contains(js, want) {
 			t.Errorf("app.js missing %q", want)

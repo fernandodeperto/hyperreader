@@ -1,10 +1,4 @@
-# reader-top-bar Specification
-
-## Purpose
-
-Defines the composition of HyperReader's persistent top bar: the single row that hosts the page title, the search field, and the live-connection indicator, in place of the previous split between a header row and a separate search toolbar row.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Top bar hosts title, search, and live indicator
 The application SHALL present the page title, one context field, the live-connection indicator, and the theme control in one persistent top bar. In the document list, the context field SHALL be the search field and SHALL appear on the right side of the top bar before the status and theme controls. In the page view, the application SHALL hide the search field and SHALL show the selected page slug in the same top-bar position. The application SHALL place the theme control immediately after the live-connection indicator. The application SHALL NOT present a separate search toolbar row outside the top bar.
@@ -39,6 +33,8 @@ The top bar's context field SHALL remain readable or operable at narrow viewport
 - **THEN** the selected page slug remains readable
 - **AND** the live-connection indicator and theme control remain visible and operable
 - **AND** the top bar does not cause the page to overflow the viewport width
+
+## ADDED Requirements
 
 ### Requirement: Live connection uses an icon
 The application SHALL show the live-connection state as one icon without visible badge text. The icon SHALL be green while the connection is live. The icon SHALL be red while the connection is connecting or reconnecting. The application SHALL expose the current state as accessible text so color is not the only status signal.

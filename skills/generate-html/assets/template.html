@@ -338,23 +338,32 @@ const resolveColor = (name) => {
 };
 
 const themeBtn = document.querySelector(".theme");
-const syncThemeBtn = () => {
-  const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-  themeBtn.setAttribute("aria-pressed", String(dark));
-  themeBtn.setAttribute("aria-label", dark ? "Switch to light theme" : "Switch to dark theme");
-};
-syncThemeBtn();
-themeBtn.addEventListener("click", () => {
-  const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-  root.dataset.theme = dark ? "light" : "dark";
-  localStorage.setItem("hyperreader-theme", root.dataset.theme);
+// HyperReader's own top bar already carries a dark/light control when a
+// report is opened inside its iframe, so a second floating control on the
+// same document would be a duplicate. Standalone (window.top === window),
+// there is no host control, so this stays the only one.
+const embedded = window.top !== window.self;
+if (embedded) {
+  themeBtn.hidden = true;
+} else {
+  const syncThemeBtn = () => {
+    const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    themeBtn.setAttribute("aria-pressed", String(dark));
+    themeBtn.setAttribute("aria-label", dark ? "Switch to light theme" : "Switch to dark theme");
+  };
   syncThemeBtn();
-  // Charts and mermaid render their own colours from the palette at
-  // render time; this is the one event that tells them to do it again.
-  // Highlighting needs no listener: its map is expressed in palette
-  // variables, which flip natively with no re-render.
-  document.dispatchEvent(new Event("themechange"));
-});
+  themeBtn.addEventListener("click", () => {
+    const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    root.dataset.theme = dark ? "light" : "dark";
+    localStorage.setItem("hyperreader-theme", root.dataset.theme);
+    syncThemeBtn();
+    // Charts and mermaid render their own colours from the palette at
+    // render time; this is the one event that tells them to do it again.
+    // Highlighting needs no listener: its map is expressed in palette
+    // variables, which flip natively with no re-render.
+    document.dispatchEvent(new Event("themechange"));
+  });
+}
 
 // Sidebar contents: forced open on the wide layout, where it never needs
 // a manual toggle, and closed again on the way back down rather than

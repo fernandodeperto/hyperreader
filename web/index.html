@@ -8,24 +8,27 @@
 </head>
 <body>
   <!--
-    Single-page web UI for HyperReader. Activating a row opens the page's
-    raw rendered HTML in a new browser tab via the existing
-    GET /api/pages/{slug}/content endpoint, with zero app chrome. The
-    empty-state, loading-state, and error regions are wired so every fetch
-    outcome has a visible surface.
+    Single-page web UI for HyperReader. Activating a row displays the stored
+    page in the trusted iframe below the fixed top bar. The iframe loads
+    GET /api/pages/{slug}/content directly so the stored HTML remains a
+    complete, unsandboxed document and owns page-view scrolling.
   -->
   <main id="app">
     <header>
-      <h1>HyperReader</h1>
-      <label for="search" class="visually-hidden">Search pages</label>
-      <input id="search" type="search" placeholder="Search by name or description&hellip;" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <h1><a id="home-link" href="/">HyperReader</a></h1>
+      <div id="top-bar-context">
+        <label for="search" class="visually-hidden">Search pages</label>
+        <input id="search" type="search" placeholder="Search by name or description&hellip;" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <span id="selected-slug" hidden></span>
+      </div>
       <!-- Live-update indicator, driven by the EventSource connection in
            app.js. data-state cycles connecting -> live -> reconnecting
            so a dropped SSE connection is visible instead of the table
            silently going stale. Starts "connecting" until the stream's
            open event fires (proving the ": connected" comment's headers
            were flushed). -->
-      <span id="live-status" data-state="connecting" role="status" aria-live="polite"></span>
+      <span id="live-status" data-state="connecting" role="status" aria-live="polite" aria-label="Connecting"></span>
+      <button id="theme-toggle" type="button" aria-label="Switch to light theme" title="Switch to light theme">☀</button>
     </header>
 
     <section id="table-view">
@@ -40,14 +43,17 @@
           </tr>
         </thead>
         <!-- tbody rows are activatable: a click (or Enter/Space on a
-             focused row) opens the page's raw rendered HTML in a new
-             browser tab via GET /api/pages/{slug}/content. -->
+             focused row) displays the page in the same tab. -->
         <tbody></tbody>
       </table>
+
+      <!-- Error region surfaced when an /api fetch fails (R002: in-UI error) -->
+      <p id="error-message" class="error" hidden></p>
     </section>
 
-    <!-- Error region surfaced when an /api fetch fails (R002: in-UI error) -->
-    <p id="error-message" class="error" hidden></p>
+    <section id="page-view" hidden>
+      <iframe id="page-frame" title="Stored page" src="about:blank"></iframe>
+    </section>
   </main>
 
   <script src="/app.js" defer></script>

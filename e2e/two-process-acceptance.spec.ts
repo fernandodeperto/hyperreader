@@ -1,28 +1,10 @@
-// Playwright proof for S04-T04 — the milestone's explicitly non-mockable
-// acceptance criterion.
+// End-to-end proof for the real agent-to-browser path.
 //
-// `hyperreader serve` is already running as one real OS process (Playwright's
-// webServer in playwright.config.ts). This spec opens a real Chromium page
-// against it, then spawns the *compiled binary's* `mcp` subcommand as a
-// SECOND, separate OS process — exactly as an agent's MCP client would
-// launch it — and drives it over raw stdio JSON-RPC (newline-delimited
-// jsonrpc2, the go-sdk's real CommandTransport wire framing; see
-// go-sdk@v1.7.0's ioConn read/write in mcp/transport.go). No go-sdk client
-// helper is used here: this test speaks the literal bytes an MCP host
-// sends, which is what makes it non-mockable at the protocol boundary.
-//
-// It proves the full agent-to-browser loop: send_html over the second
-// process's stdio -> serve's POST /api/pages -> serve's SSE broadcast
-// -> the already-open page's EventSource -> a new top row, with no manual
-// refresh — then activating that row opens its raw rendered HTML in a NEW
-// BROWSER TAB (window.open to GET /api/pages/{slug}/content) where the
-// page's inline <script> runs and leaves a marker (R006: unsandboxed
-// rendering at the top level, not inside an in-app iframe — M002 / Branch
-// B removed that surface entirely). The table stays visible the whole
-// time, and the row remains present and FTS5-searchable after the popup is
-// closed (same continuity contract as e2e/sse-live.spec.ts, now proven
-// end-to-end with real processes at every hop).
-import { test, expect, type Page, type Locator } from "@playwright/test";
+// Playwright drives the running serve process while a compiled `hyperreader
+// mcp` process sends HTML over raw stdio JSON-RPC. The resulting SSE event
+// updates the hidden table while another stored page remains open in the
+// same-tab reader.
+import { test, expect } from "@playwright/test";
 import { type ChildProcessWithoutNullStreams, spawn, spawnSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -32,23 +14,6 @@ import path from "node:path";
 // webServer that is already running when this test starts.
 const port = Number(process.env.PORT) || 7421;
 
-function tableRows(page: Page) {
-  return page.locator("#pages-table tbody tr");
-}
-
-// openRowInNewTab clicks a page row and returns the popup Page that
-// window.open produced (Branch B: GET /api/pages/{slug}/content in a new
-// top-level tab with zero app chrome). The popup promise is registered
-// BEFORE the click so Playwright captures the popup event regardless of
-// timing. waitForLoadState("domcontentloaded") ensures the page's HTML
-// (and its inline <script>) has parsed before the caller asserts on markers.
-async function openRowInNewTab(page: Page, row: Locator): Promise<Page> {
-  const popupPromise = page.waitForEvent("popup");
-  await row.click();
-  const popup = await popupPromise;
-  await popup.waitForLoadState("domcontentloaded");
-  return popup;
-}
 
 // buildHyperReaderBinary compiles the real hyperreader binary once into a fresh
 // temp dir (outside the repo, so it never needs a .gitignore entry of its
@@ -166,30 +131,12 @@ class RawStdioJSONRPCClient {
   }
 }
 
-test("milestone acceptance: real mcp OS process pushes send_html into a real open browser via SSE", async ({
-  page,
-}) => {
-  const bin = buildHyperReaderBinary();
-
-  // 1. Open the real page against the already-running serve process and
-  // let its EventSource subscribe.
-  await page.goto("/");
-  await expect(page.locator("#loading-state")).toBeHidden();
-  const liveStatus = page.locator("#live-status");
-  await expect(liveStatus).toHaveAttribute("data-state", "live", { timeout: 10_000 });
-
-  const rows = tableRows(page);
-  const initialCount = await rows.count();
-
-  // Sentinel: a reload/navigation would clear this. Its survival after the
-  // live row appears proves the update arrived via SSE, not a refresh.
-  await page.evaluate(() => {
-    (window as unknown as { __acceptanceSentinel: string }).__acceptanceSentinel = "still-here";
-  });
-
+test("real mcp process updates the table during a same-tab page detour", async ({ page }) => {
   const timestamp = Date.now();
-  const uniqueSlug = "two-process-acceptance-page-" + timestamp;
-  const uniqueName = "Two-Process Acceptance Page " + timestamp;
+  const detourSlug = `two-process-detour-${timestamp}`;
+  const detourName = `Two Process Detour ${timestamp}`;
+  const uniqueSlug = `two-process-acceptance-page-${timestamp}`;
+  const uniqueName = `Two Process Acceptance Page ${timestamp}`;
   const pageHTML =
     "<!DOCTYPE html><html><head><title>Acceptance</title></head>" +
     "<body><h1>Acceptance</h1><p id='static-marker'>static</p>" +
@@ -197,10 +144,40 @@ test("milestone acceptance: real mcp OS process pushes send_html into a real ope
     "'<p id=\"script-marker\">script-ran</p>');</script>" +
     "</body></html>";
 
-  // 2. Spawn the compiled binary's `mcp` subcommand as a SECOND, separate
-  // real OS process — pointed at the already-running serve process's port
-  // — and speak raw newline-delimited JSON-RPC to it over its stdio, the
-  // same mechanism a real MCP host uses.
+  const detourResponse = await page.request.post("/api/pages", {
+    data: {
+      slug: detourSlug,
+      name: detourName,
+      description: "kept open while the mcp process sends another page",
+      html: pageHTML,
+    },
+  });
+  expect(detourResponse.ok()).toBeTruthy();
+
+  const bin = buildHyperReaderBinary();
+  await page.goto("/");
+  await expect(page.locator("#loading-state")).toBeHidden();
+  await expect(page.locator("#live-status")).toHaveAttribute("data-state", "live", {
+    timeout: 10_000,
+  });
+
+  const rows = page.locator("#pages-table tbody tr");
+  const initialCount = await rows.count();
+  await page.locator("#search").fill(detourName);
+  await expect(rows).toHaveCount(1);
+  await page.locator("#search").fill("");
+  await expect(rows).toHaveCount(initialCount);
+  await page.locator(`#pages-table tbody tr[data-slug="${detourSlug}"]`).click();
+  await expect(page.locator("#page-view")).toBeVisible();
+  await expect(page.frameLocator("#page-frame").locator("#script-marker")).toHaveText(
+    "script-ran",
+  );
+  expect(page.context().pages()).toHaveLength(1);
+
+  await page.evaluate(() => {
+    Reflect.set(window, "__acceptanceSentinel", "still-here");
+  });
+
   const client = new RawStdioJSONRPCClient(bin, ["mcp", "--port", String(port)]);
   try {
     const initRes = await client.request("initialize", {
@@ -222,73 +199,38 @@ test("milestone acceptance: real mcp OS process pushes send_html into a real ope
         description: "pushed by a real separate mcp OS process",
       },
     });
-
     if (callRes.error) {
       throw new Error(
-        `tools/call(send_html) protocol-level error: ${JSON.stringify(callRes.error)}\nstderr:\n${client.stderr()}`
+        `tools/call(send_html) protocol-level error: ${JSON.stringify(callRes.error)}\nstderr:\n${client.stderr()}`,
       );
     }
-    const result = callRes.result;
-    if (result?.isError) {
+    if (callRes.result?.isError) {
       throw new Error(
-        `send_html returned isError=true: ${JSON.stringify(result)}\nstderr:\n${client.stderr()}`
+        `send_html returned isError=true: ${JSON.stringify(callRes.result)}\nstderr:\n${client.stderr()}`,
       );
     }
 
-    // 3. The row appears live in the already-open page — no reload, no
-    // manual re-fetch — driven purely by the page-created SSE broadcast
-    // that the subprocess's forwarded POST /api/pages triggered.
     await expect(rows).toHaveCount(initialCount + 1, { timeout: 10_000 });
-    await expect(rows.nth(0)).toContainText(uniqueName);
-
-    const sentinel = await page.evaluate(
-      () => (window as unknown as { __acceptanceSentinel?: string }).__acceptanceSentinel
+    await expect(rows.first()).toContainText(uniqueName);
+    await expect(page.locator("#page-view")).toBeVisible();
+    await expect(page.locator("#table-view")).toBeHidden();
+    await expect(page.frameLocator("#page-frame").locator("#static-marker")).toHaveText(
+      "static",
     );
-    expect(sentinel).toBe("still-here");
   } finally {
     client.close();
   }
 
-  // 4. The live-appended row behaves like any other row: activating it
-  // opens its raw rendered HTML in a NEW BROWSER TAB via window.open to
-  // GET /api/pages/{slug}/content (Branch B). There is no in-app
-  // detail view, iframe, or Back button anymore (all removed, not hidden).
-  //
-  // Regression guard (Branch B): the removed surfaces must be absent from
-  // the DOM — passing by omission on dead code is explicitly disallowed,
-  // so assert the absence directly before exercising the new-tab path.
-  await expect(page.locator("#detail-view")).toHaveCount(0);
-  await expect(page.locator("#detail-frame")).toHaveCount(0);
-  await expect(page.locator("#back-button")).toHaveCount(0);
-
-  const popup = await openRowInNewTab(page, rows.nth(0));
-  // The popup navigated to the content endpoint for this page.
-  await expect(popup).toHaveURL(/\/api\/pages\/[a-z0-9-]+\/content$/);
-
-  // Branch B: the table view is never hidden — it stays visible while the
-  // page opens in a separate tab (no in-app view-switching).
-  await expect(page.locator("#table-view")).toBeVisible();
-
-  await expect(popup.locator("#static-marker")).toHaveText("static");
-  // The inline <script> ran — unsandboxed rendering proven even for a row
-  // that arrived via a real separate mcp OS process's send_html call, in
-  // the new top-level tab (R006) rather than a sandboxed iframe. This is
-  // the milestone's acceptance proof: real processes at every hop, and
-  // the unsandboxed render survives the M002 Branch B change intact.
-  await expect(popup.locator("#script-marker")).toHaveText("script-ran", { timeout: 10_000 });
-
-  // 5. Closing the popup leaves the table intact: the live row is still
-  //    present and searchable. (Branch B has no Back button — the user
-  //    simply closes the tab.)
-  await popup.close();
+  expect(await page.evaluate(() => Reflect.get(window, "__acceptanceSentinel"))).toBe(
+    "still-here",
+  );
+  await page.locator("#home-link").click();
   await expect(page.locator("#table-view")).toBeVisible();
   await expect(rows).toHaveCount(initialCount + 1);
-  await expect(page.locator("#pages-table tbody tr", { hasText: uniqueName })).toBeVisible();
+  await expect(rows.first()).toContainText(uniqueName);
 
   await page.locator("#search").fill(uniqueName);
   await expect(rows).toHaveCount(1);
-  await expect(rows.nth(0)).toContainText(uniqueName);
-
-  await page.locator("#search").fill("");
-  await expect(rows).toHaveCount(initialCount + 1);
+  await expect(rows.first()).toContainText(uniqueName);
+  expect(page.context().pages()).toHaveLength(1);
 });
