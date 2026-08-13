@@ -1,9 +1,9 @@
 // Package storage implements the SQLite+FTS5 persistence layer for hyperreader.
 //
 // A Store wraps a *sql.DB backed by modernc.org/sqlite (pure Go, no cgo).
-// Documents are stored as metadata in the docs table plus an FTS5 external-
-// content index over name/description/tags; the raw HTML payload lives on
-// disk under <filesDir>/<id>.html and only its path is recorded in SQLite.
+// Pages are stored as metadata in the pages table plus an FTS5 external-
+// content index over name/description; the raw HTML payload lives on disk
+// under <filesDir>/<slug>.html and only its path is recorded in SQLite.
 //
 // The DB connection is opened with the shared cache disabled and a 30s busy
 // timeout so concurrent readers/writers (the serve process plus the MCP
@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -28,16 +29,59 @@ import (
 // pull the whole table into memory.
 const DefaultLimit = 100
 
-// Doc is the in-memory representation of a row in docs. HTMLContent is the
+// SlugMaxLength is the maximum length of a page slug. The slug is also a
+// filename component and a URL path segment, so the cap keeps it well
+// under filesystem filename limits.
+const SlugMaxLength = 80
+
+// DescriptionMaxLength is the maximum length of a page description,
+// enforced server-side; an over-limit description is rejected, never
+// silently truncated.
+const DescriptionMaxLength = 200
+
+// slugPattern is the sole legal shape for a page slug: lowercase letters
+// and digits, grouped into dash-separated words, with no leading dash, no
+// trailing dash, and no consecutive dashes. It excludes '/', '.', '..',
+// whitespace, and every other filesystem- or URL-meaningful character by
+// construction (only [a-z0-9-] survives), since the slug is also the SQL
+// primary key, the filename (files/<slug>.html), and the URL path segment.
+var slugPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
+// ValidateSlug reports whether slug is a legal page identifier: matching
+// slugPattern and no longer than SlugMaxLength. It returns a clear,
+// user-facing error naming the violated rule; callers must run this before
+// any storage or filesystem operation, since an unvalidated slug in either
+// position is an injection or traversal vector.
+func ValidateSlug(slug string) error {
+	if len(slug) > SlugMaxLength {
+		return fmt.Errorf("slug exceeds the maximum length of %d characters", SlugMaxLength)
+	}
+	if !slugPattern.MatchString(slug) {
+		return fmt.Errorf("slug %q must match %s (lowercase letters, digits, and single dashes between words)", slug, slugPattern.String())
+	}
+	return nil
+}
+
+// ValidateDescription reports whether description is within
+// DescriptionMaxLength, returning a clear error naming the limit if not.
+func ValidateDescription(description string) error {
+	if len(description) > DescriptionMaxLength {
+		return fmt.Errorf("description exceeds the maximum length of %d characters", DescriptionMaxLength)
+	}
+	return nil
+}
+
+// Doc is the in-memory representation of a row in pages. HTMLContent is the
 // raw payload read back from disk; it is populated only by callers that
-// need it (e.g. GetByIDContent), never by list/search which return metadata.
+// need it (e.g. GetBySlugContent), never by list/search which return
+// metadata.
 type Doc struct {
-	ID          int64
+	Slug        string
 	Name        string
 	Description string
-	Tags        string
 	FilePath    string
 	CreatedAt   time.Time
+	UpdatedAt   time.Time
 	HTMLContent string
 }
 
@@ -86,59 +130,77 @@ func Open(dbPath, filesDir string) (*Store, error) {
 // Close releases the database connection pool.
 func (s *Store) Close() error { return s.db.Close() }
 
-// Insert persists a document's metadata to SQLite and its HTML payload to
-// disk, returning the new row id. The row is inserted first (letting the DB
-// assign the id), then the HTML file is written as <id>.html, then the
-// file_path column is updated and the transaction committed. If the file
-// write fails the transaction rolls back (no dangling metadata row); if the
-// commit fails after the file write, an orphan .html file may remain — that
-// is inert and preferable to a metadata row pointing at a missing file.
-func (s *Store) Insert(ctx context.Context, doc Doc) (int64, error) {
+// Upsert persists a page's metadata to SQLite and its HTML payload to disk,
+// creating a new page when doc.Slug does not already exist and patching the
+// existing one in place otherwise. It returns created=true for a new page.
+//
+// Slug and description are validated first, before any storage or
+// filesystem operation. On creation created_at and updated_at are both set
+// to now; on a patch, created_at is preserved and updated_at advances to
+// now. The row (with its final file_path, deterministic from the slug) is
+// written first, then the HTML file, then the transaction is committed —
+// the same crash-safety ordering the original create-only Insert used: if
+// the file write fails the transaction rolls back (no dangling or
+// half-patched metadata row); if the commit fails after the file write, an
+// orphan/overwritten .html file may remain — inert, and preferable to a
+// metadata row that disagrees with the file on disk.
+func (s *Store) Upsert(ctx context.Context, doc Doc) (created bool, err error) {
+	if err := ValidateSlug(doc.Slug); err != nil {
+		return false, fmt.Errorf("upsert page: %w", err)
+	}
 	if doc.Name == "" {
-		return 0, errors.New("insert doc: name is required")
+		return false, errors.New("upsert page: name is required")
+	}
+	if err := ValidateDescription(doc.Description); err != nil {
+		return false, fmt.Errorf("upsert page: %w", err)
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return 0, fmt.Errorf("begin insert tx: %w", err)
+		return false, fmt.Errorf("begin upsert tx: %w", err)
 	}
 	defer tx.Rollback() // safe no-op after a successful Commit
 
-	res, err := tx.ExecContext(ctx,
-		`INSERT INTO docs (name, description, tags, file_path, created_at)
-		 VALUES (?, ?, ?, '', ?)`,
-		doc.Name, doc.Description, doc.Tags, time.Now().UTC().Unix())
-	if err != nil {
-		return 0, fmt.Errorf("insert doc row: %w", err)
-	}
-	id, err := res.LastInsertId()
-	if err != nil {
-		return 0, fmt.Errorf("insert doc lastInsertId: %w", err)
+	var exists bool
+	if err := tx.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM pages WHERE slug = ?)`, doc.Slug).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check slug existence: %w", err)
 	}
 
-	filePath := filepath.Join(s.filesDir, fmt.Sprintf("%d.html", id))
-	if err := os.WriteFile(filePath, []byte(doc.HTMLContent), 0o644); err != nil {
-		return 0, fmt.Errorf("write html file %s: %w", filePath, err)
+	now := time.Now().UTC().UnixNano()
+	filePath := filepath.Join(s.filesDir, doc.Slug+".html")
+
+	if exists {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE pages SET name = ?, description = ?, file_path = ?, updated_at = ? WHERE slug = ?`,
+			doc.Name, doc.Description, filePath, now, doc.Slug); err != nil {
+			return false, fmt.Errorf("update page row: %w", err)
+		}
+	} else {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO pages (slug, name, description, file_path, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			doc.Slug, doc.Name, doc.Description, filePath, now, now); err != nil {
+			return false, fmt.Errorf("insert page row: %w", err)
+		}
 	}
-	if _, err := tx.ExecContext(ctx,
-		`UPDATE docs SET file_path = ? WHERE id = ?`, filePath, id); err != nil {
-		os.Remove(filePath)
-		return 0, fmt.Errorf("update doc file_path: %w", err)
+
+	if err := os.WriteFile(filePath, []byte(doc.HTMLContent), 0o644); err != nil {
+		return false, fmt.Errorf("write html file %s: %w", filePath, err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		os.Remove(filePath)
-		return 0, fmt.Errorf("commit insert tx: %w", err)
+		return false, fmt.Errorf("commit upsert tx: %w", err)
 	}
-	return id, nil
+	return !exists, nil
 }
 
-// GetByID loads a document's metadata by id. Returns sql.ErrNoRows (wrapped)
-// when the id does not exist.
-func (s *Store) GetByID(ctx context.Context, id int64) (Doc, error) {
+// GetBySlug loads a page's metadata by slug. Returns sql.ErrNoRows
+// (wrapped) when the slug does not exist.
+func (s *Store) GetBySlug(ctx context.Context, slug string) (Doc, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, name, description, tags, file_path, created_at
-		 FROM docs WHERE id = ?`, id)
+		`SELECT slug, name, description, file_path, created_at, updated_at
+		 FROM pages WHERE slug = ?`, slug)
 	d, err := scanDoc(row)
 	if err != nil {
 		return Doc{}, err
@@ -146,9 +208,9 @@ func (s *Store) GetByID(ctx context.Context, id int64) (Doc, error) {
 	return d, nil
 }
 
-// GetByIDContent loads metadata and the raw HTML payload from disk.
-func (s *Store) GetByIDContent(ctx context.Context, id int64) (Doc, error) {
-	d, err := s.GetByID(ctx, id)
+// GetBySlugContent loads metadata and the raw HTML payload from disk.
+func (s *Store) GetBySlugContent(ctx context.Context, slug string) (Doc, error) {
+	d, err := s.GetBySlug(ctx, slug)
 	if err != nil {
 		return Doc{}, err
 	}
@@ -160,25 +222,27 @@ func (s *Store) GetByIDContent(ctx context.Context, id int64) (Doc, error) {
 	return d, nil
 }
 
-// List returns the most-recent limit documents (by created_at desc). limit<=0
-// falls back to DefaultLimit.
+// List returns the most-recently-changed limit pages (by updated_at desc,
+// ties broken by rowid desc for a stable, insertion-order-respecting
+// tiebreak). limit<=0 falls back to DefaultLimit.
 func (s *Store) List(ctx context.Context, limit int) ([]Doc, error) {
 	if limit <= 0 {
 		limit = DefaultLimit
 	}
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, name, description, tags, file_path, created_at
-		 FROM docs ORDER BY created_at DESC, id DESC LIMIT ?`, limit)
+		`SELECT slug, name, description, file_path, created_at, updated_at
+		 FROM pages ORDER BY updated_at DESC, rowid DESC LIMIT ?`, limit)
 	if err != nil {
-		return nil, fmt.Errorf("list docs: %w", err)
+		return nil, fmt.Errorf("list pages: %w", err)
 	}
 	defer rows.Close()
 	return scanRows(rows)
 }
 
-// Search runs an FTS5 MATCH query across name/description/tags and returns
-// matching documents ranked by relevance (bm25). An empty/no-match query
-// returns an empty slice and nil error (not an error).
+// Search runs an FTS5 MATCH query across name/description and returns
+// matching pages ranked by relevance (bm25), most-recently-changed first
+// among ties. An empty/no-match query returns an empty slice and nil error
+// (not an error).
 //
 // The raw query is sanitized by buildFTSQuery: bare alphanumeric tokens get a
 // trailing '*' for prefix matching (so "roll" finds "rollback"), and tokens
@@ -192,14 +256,14 @@ func (s *Store) Search(ctx context.Context, query string) ([]Doc, error) {
 		return []Doc{}, nil
 	}
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT d.id, d.name, d.description, d.tags, d.file_path, d.created_at
-		 FROM docs_fts f
-		 JOIN docs d ON d.id = f.rowid
-		 WHERE docs_fts MATCH ?
+		`SELECT p.slug, p.name, p.description, p.file_path, p.created_at, p.updated_at
+		 FROM pages_fts f
+		 JOIN pages p ON p.rowid = f.rowid
+		 WHERE pages_fts MATCH ?
 		 ORDER BY rank
 		 LIMIT ?`, q, DefaultLimit)
 	if err != nil {
-		return nil, fmt.Errorf("search docs %q: %w", query, err)
+		return nil, fmt.Errorf("search pages %q: %w", query, err)
 	}
 	defer rows.Close()
 	return scanRows(rows)
@@ -244,15 +308,16 @@ func isBareWord(s string) bool {
 
 func scanDoc(row *sql.Row) (Doc, error) {
 	var d Doc
-	var ts int64
-	err := row.Scan(&d.ID, &d.Name, &d.Description, &d.Tags, &d.FilePath, &ts)
+	var createdTS, updatedTS int64
+	err := row.Scan(&d.Slug, &d.Name, &d.Description, &d.FilePath, &createdTS, &updatedTS)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return Doc{}, fmt.Errorf("doc %w", sql.ErrNoRows)
+			return Doc{}, fmt.Errorf("page %w", sql.ErrNoRows)
 		}
-		return Doc{}, fmt.Errorf("scan doc: %w", err)
+		return Doc{}, fmt.Errorf("scan page: %w", err)
 	}
-	d.CreatedAt = time.Unix(ts, 0).UTC()
+	d.CreatedAt = time.Unix(0, createdTS).UTC()
+	d.UpdatedAt = time.Unix(0, updatedTS).UTC()
 	return d, nil
 }
 
@@ -260,11 +325,12 @@ func scanRows(rows *sql.Rows) ([]Doc, error) {
 	var out []Doc
 	for rows.Next() {
 		var d Doc
-		var ts int64
-		if err := rows.Scan(&d.ID, &d.Name, &d.Description, &d.Tags, &d.FilePath, &ts); err != nil {
+		var createdTS, updatedTS int64
+		if err := rows.Scan(&d.Slug, &d.Name, &d.Description, &d.FilePath, &createdTS, &updatedTS); err != nil {
 			return nil, fmt.Errorf("scan row: %w", err)
 		}
-		d.CreatedAt = time.Unix(ts, 0).UTC()
+		d.CreatedAt = time.Unix(0, createdTS).UTC()
+		d.UpdatedAt = time.Unix(0, updatedTS).UTC()
 		out = append(out, d)
 	}
 	if err := rows.Err(); err != nil {

@@ -109,11 +109,11 @@ func TestNewServer_IdentifiesAsHyperReader(t *testing.T) {
 
 // TestSendHTML_Success proves the happy path end-to-end through a real MCP
 // client: send_html forwards to a fake serve backend and the tool result
-// reports success (not IsError) naming the document.
+// reports success (not IsError) naming the page and slug.
 func TestSendHTML_Success(t *testing.T) {
 	var gotBody forwardRequest
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.URL.Path != "/api/documents" {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/pages" {
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
@@ -121,10 +121,11 @@ func TestSendHTML_Success(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(documentResponse{
-			ID:        42,
+		_ = json.NewEncoder(w).Encode(pageResponse{
+			Slug:      gotBody.Slug,
 			Name:      gotBody.Name,
 			CreatedAt: "2025-01-01T00:00:00Z",
+			UpdatedAt: "2025-01-01T00:00:00Z",
 		})
 	}))
 	defer ts.Close()
@@ -134,21 +135,52 @@ func TestSendHTML_Success(t *testing.T) {
 	defer cleanup()
 
 	res := callSendHTML(t, cs, map[string]any{
+		"slug":        "my-doc",
 		"name":        "My Doc",
 		"html":        "<h1>hi</h1>",
 		"description": "a test doc",
-		"tags":        "a,b",
 	})
 
 	if res.IsError {
 		t.Fatalf("expected success, got IsError=true: %s", resultText(res))
 	}
 	text := resultText(res)
-	if !strings.Contains(text, "My Doc") || !strings.Contains(text, "42") {
-		t.Errorf("result text %q does not name the document/id", text)
+	if !strings.Contains(text, "My Doc") || !strings.Contains(text, "my-doc") {
+		t.Errorf("result text %q does not name the page/slug", text)
 	}
-	if gotBody.Name != "My Doc" || gotBody.HTML != "<h1>hi</h1>" || gotBody.Description != "a test doc" || gotBody.Tags != "a,b" {
+	if !strings.Contains(text, "created") {
+		t.Errorf("result text %q does not say the page was created", text)
+	}
+	if gotBody.Slug != "my-doc" || gotBody.Name != "My Doc" || gotBody.HTML != "<h1>hi</h1>" || gotBody.Description != "a test doc" {
 		t.Errorf("forwarded body mismatch: %+v", gotBody)
+	}
+}
+
+// TestSendHTML_Success_Patch proves a second write to the same slug is
+// reported as an update (HTTP 200 from serve), not a creation, so the
+// agent can tell the two apart from the result text alone.
+func TestSendHTML_Success_Patch(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body forwardRequest
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(pageResponse{Slug: body.Slug, Name: body.Name})
+	}))
+	defer ts.Close()
+
+	port := portOf(t, ts)
+	cs, cleanup := connectClient(t, port)
+	defer cleanup()
+
+	res := callSendHTML(t, cs, map[string]any{"slug": "changelog", "name": "Changelog v2", "html": "<p/>"})
+
+	if res.IsError {
+		t.Fatalf("expected success, got IsError=true: %s", resultText(res))
+	}
+	text := resultText(res)
+	if !strings.Contains(text, "updated") {
+		t.Errorf("result text %q does not say the page was updated", text)
 	}
 }
 
@@ -160,7 +192,7 @@ func TestSendHTML_ServeNotRunning(t *testing.T) {
 	cs, cleanup := connectClient(t, port)
 	defer cleanup()
 
-	res := callSendHTML(t, cs, map[string]any{"name": "x", "html": "<p>x</p>"})
+	res := callSendHTML(t, cs, map[string]any{"slug": "x", "name": "x", "html": "<p>x</p>"})
 
 	if !res.IsError {
 		t.Fatalf("expected IsError=true when serve is not running, got success: %s", resultText(res))
@@ -186,7 +218,7 @@ func TestSendHTML_HTTPError(t *testing.T) {
 	cs, cleanup := connectClient(t, port)
 	defer cleanup()
 
-	res := callSendHTML(t, cs, map[string]any{"name": "x", "html": "<p>x</p>"})
+	res := callSendHTML(t, cs, map[string]any{"slug": "x", "name": "x", "html": "<p>x</p>"})
 
 	if !res.IsError {
 		t.Fatalf("expected IsError=true on HTTP 400, got success: %s", resultText(res))
@@ -198,7 +230,7 @@ func TestSendHTML_HTTPError(t *testing.T) {
 }
 
 // TestSendHTML_MalformedResponse proves failure path 3: serve returns 201
-// but a body that is not valid documentResponse JSON. forward()'s decode
+// but a body that is not valid pageResponse JSON. forward()'s decode
 // step must fail and surface as IsError=true, not a Go error or a panic.
 func TestSendHTML_MalformedResponse(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -211,7 +243,7 @@ func TestSendHTML_MalformedResponse(t *testing.T) {
 	cs, cleanup := connectClient(t, port)
 	defer cleanup()
 
-	res := callSendHTML(t, cs, map[string]any{"name": "x", "html": "<p>x</p>"})
+	res := callSendHTML(t, cs, map[string]any{"slug": "x", "name": "x", "html": "<p>x</p>"})
 
 	if !res.IsError {
 		t.Fatalf("expected IsError=true on malformed response body, got success: %s", resultText(res))
@@ -238,7 +270,7 @@ func TestSendHTML_MissingName(t *testing.T) {
 	cs, cleanup := connectClient(t, port)
 	defer cleanup()
 
-	res := callSendHTML(t, cs, map[string]any{"name": "", "html": "<p>x</p>"})
+	res := callSendHTML(t, cs, map[string]any{"slug": "x", "name": "", "html": "<p>x</p>"})
 
 	if !res.IsError {
 		t.Fatalf("expected IsError=true when name is empty, got success: %s", resultText(res))
@@ -249,6 +281,36 @@ func TestSendHTML_MissingName(t *testing.T) {
 	}
 	if called {
 		t.Errorf("expected no request to serve when name is empty; forward() should fail fast")
+	}
+}
+
+// TestSendHTML_MissingSlug proves the slug-required precondition: an empty
+// slug is rejected before any network call, surfacing as IsError=true, not
+// a call to serve at all. Slug is the page's sole identifier, so this fails
+// exactly as fast as the pre-existing missing-name check.
+func TestSendHTML_MissingSlug(t *testing.T) {
+	called := false
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer ts.Close()
+
+	port := portOf(t, ts)
+	cs, cleanup := connectClient(t, port)
+	defer cleanup()
+
+	res := callSendHTML(t, cs, map[string]any{"slug": "", "name": "x", "html": "<p>x</p>"})
+
+	if !res.IsError {
+		t.Fatalf("expected IsError=true when slug is empty, got success: %s", resultText(res))
+	}
+	text := resultText(res)
+	if !strings.Contains(text, "slug is required") {
+		t.Errorf("result text %q does not explain the missing slug", text)
+	}
+	if called {
+		t.Errorf("expected no request to serve when slug is empty; forward() should fail fast")
 	}
 }
 
@@ -266,7 +328,7 @@ func TestSendHTML_HTTPError_EmptyBody(t *testing.T) {
 	cs, cleanup := connectClient(t, port)
 	defer cleanup()
 
-	res := callSendHTML(t, cs, map[string]any{"name": "x", "html": "<p>x</p>"})
+	res := callSendHTML(t, cs, map[string]any{"slug": "x", "name": "x", "html": "<p>x</p>"})
 
 	if !res.IsError {
 		t.Fatalf("expected IsError=true on HTTP 500 with an empty body, got success: %s", resultText(res))
@@ -296,7 +358,7 @@ func TestSendHTML_HTTPError_NonJSONBody(t *testing.T) {
 	cs, cleanup := connectClient(t, port)
 	defer cleanup()
 
-	res := callSendHTML(t, cs, map[string]any{"name": "x", "html": "<p>x</p>"})
+	res := callSendHTML(t, cs, map[string]any{"slug": "x", "name": "x", "html": "<p>x</p>"})
 
 	if !res.IsError {
 		t.Fatalf("expected IsError=true on HTTP 502 with a non-JSON body, got success: %s", resultText(res))

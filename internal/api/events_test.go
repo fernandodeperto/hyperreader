@@ -22,7 +22,7 @@ import (
 func newEventsTestServer(t *testing.T) (*httptest.Server, *hub) {
 	t.Helper()
 	dir := t.TempDir()
-	store, err := storage.Open(filepath.Join(dir, "docs.db"), filepath.Join(dir, "files"))
+	store, err := storage.Open(filepath.Join(dir, "pages.db"), filepath.Join(dir, "files"))
 	if err != nil {
 		t.Fatalf("storage.Open: %v", err)
 	}
@@ -98,7 +98,8 @@ func readLine(t *testing.T, r *bufio.Reader, timeout time.Duration) string {
 	}
 }
 
-// httpPost POSTs body to url and fails the test unless the response is 201.
+// httpPost POSTs body to url and fails the test unless the response is a
+// successful page write (201 create or 200 patch).
 func httpPost(t *testing.T, url, body string) {
 	t.Helper()
 	resp, err := http.Post(url, "application/json", strings.NewReader(body))
@@ -106,8 +107,8 @@ func httpPost(t *testing.T, url, body string) {
 		t.Fatalf("POST %s: %v", url, err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("POST %s: status = %d, want 201", url, resp.StatusCode)
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST %s: status = %d, want 201 or 200", url, resp.StatusCode)
 	}
 }
 
@@ -146,40 +147,69 @@ func TestEvents_ConnectedCommentFlushedImmediately(t *testing.T) {
 	}
 }
 
-func TestEvents_BroadcastOnCreate_CarriesDocumentJSON(t *testing.T) {
+func TestEvents_BroadcastOnCreate_CarriesPageCreatedEvent(t *testing.T) {
 	srv, _ := newEventsTestServer(t)
 
 	r, closeStream := subscribeSSE(t, srv)
 	defer closeStream()
 
 	// Drain the initial ": connected" frame before triggering the event
-	// under test, so the assertions below only see the document event.
+	// under test, so the assertions below only see the page event.
 	readLine(t, r, 2*time.Second) // ": connected"
 	readLine(t, r, 2*time.Second) // blank terminator
 
-	httpPost(t, srv.URL+"/api/documents", `{"name":"Live Doc","description":"d","tags":"t","html":"<p>hi</p>"}`)
+	httpPost(t, srv.URL+"/api/pages", `{"slug":"live-page","name":"Live Page","description":"d","html":"<p>hi</p>"}`)
 
 	eventLine := readLine(t, r, 2*time.Second)
-	if eventLine != "event: document" {
-		t.Fatalf("event line = %q, want %q", eventLine, "event: document")
+	if eventLine != "event: page-created" {
+		t.Fatalf("event line = %q, want %q", eventLine, "event: page-created")
 	}
 	dataLine := readLine(t, r, 2*time.Second)
 	if !strings.HasPrefix(dataLine, "data: ") {
 		t.Fatalf("data line = %q, want prefix %q", dataLine, "data: ")
 	}
-	// The broadcast payload must be the exact same documentResponse JSON
-	// shape POST/GET already return (Integration Closure requirement).
-	if !strings.Contains(dataLine, `"name":"Live Doc"`) {
-		t.Errorf("data line missing document name: %q", dataLine)
+	// The broadcast payload must be the exact same pageResponse JSON shape
+	// POST/GET already return.
+	if !strings.Contains(dataLine, `"name":"Live Page"`) {
+		t.Errorf("data line missing page name: %q", dataLine)
 	}
 	if !strings.Contains(dataLine, `"description":"d"`) {
-		t.Errorf("data line missing document description: %q", dataLine)
+		t.Errorf("data line missing page description: %q", dataLine)
 	}
-	if !strings.Contains(dataLine, `"id":`) {
-		t.Errorf("data line missing document id: %q", dataLine)
+	if !strings.Contains(dataLine, `"slug":"live-page"`) {
+		t.Errorf("data line missing page slug: %q", dataLine)
 	}
 	if strings.Contains(dataLine, "\n") {
 		t.Errorf("data line must be single-line JSON, got embedded newline: %q", dataLine)
+	}
+}
+
+// TestEvents_BroadcastOnPatch_CarriesPageUpdatedEvent proves the
+// live-page-updates contract: patching an existing slug broadcasts a
+// page-updated event (not a second page-created), carrying that slug's
+// updated metadata.
+func TestEvents_BroadcastOnPatch_CarriesPageUpdatedEvent(t *testing.T) {
+	srv, _ := newEventsTestServer(t)
+
+	httpPost(t, srv.URL+"/api/pages", `{"slug":"changelog","name":"Changelog","description":"v1","html":"<p>v1</p>"}`)
+
+	r, closeStream := subscribeSSE(t, srv)
+	defer closeStream()
+	readLine(t, r, 2*time.Second) // ": connected"
+	readLine(t, r, 2*time.Second) // blank terminator
+
+	httpPost(t, srv.URL+"/api/pages", `{"slug":"changelog","name":"Changelog v2","description":"v2","html":"<p>v2</p>"}`)
+
+	eventLine := readLine(t, r, 2*time.Second)
+	if eventLine != "event: page-updated" {
+		t.Fatalf("event line = %q, want %q", eventLine, "event: page-updated")
+	}
+	dataLine := readLine(t, r, 2*time.Second)
+	if !strings.Contains(dataLine, `"slug":"changelog"`) {
+		t.Errorf("data line missing page slug: %q", dataLine)
+	}
+	if !strings.Contains(dataLine, `"name":"Changelog v2"`) {
+		t.Errorf("data line missing patched name: %q", dataLine)
 	}
 }
 
@@ -198,16 +228,16 @@ func TestEvents_MultipleSubscribers_AllReceiveBroadcast(t *testing.T) {
 	readLine(t, r2, 2*time.Second)
 	readLine(t, r2, 2*time.Second)
 
-	httpPost(t, srv.URL+"/api/documents", `{"name":"Fan-out Doc","html":"<p/>"}`)
+	httpPost(t, srv.URL+"/api/pages", `{"slug":"fan-out-page","name":"Fan-out Page","html":"<p/>"}`)
 
 	for i, r := range []*bufio.Reader{r1, r2} {
 		eventLine := readLine(t, r, 2*time.Second)
-		if eventLine != "event: document" {
-			t.Fatalf("subscriber %d: event line = %q, want %q", i, eventLine, "event: document")
+		if eventLine != "event: page-created" {
+			t.Fatalf("subscriber %d: event line = %q, want %q", i, eventLine, "event: page-created")
 		}
 		dataLine := readLine(t, r, 2*time.Second)
-		if !strings.Contains(dataLine, `"name":"Fan-out Doc"`) {
-			t.Errorf("subscriber %d: data line missing document name: %q", i, dataLine)
+		if !strings.Contains(dataLine, `"name":"Fan-out Page"`) {
+			t.Errorf("subscriber %d: data line missing page name: %q", i, dataLine)
 		}
 	}
 }
@@ -216,7 +246,7 @@ func TestEvents_MultipleSubscribers_AllReceiveBroadcast(t *testing.T) {
 
 // TestEvents_SlowSubscriberDoesNotBlockIngest proves the Must-Have that a
 // slow or disconnected subscriber never blocks, fails, or delays ingest. A
-// subscriber connects but never reads its response body at all; ingesting
+// subscriber connects but never reads its response body at all; writing
 // well past the hub's per-subscriber buffer size must still complete
 // quickly because hub.broadcast drops for a full subscriber channel instead
 // of blocking the publisher.
@@ -230,8 +260,8 @@ func TestEvents_SlowSubscriberDoesNotBlockIngest(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		for i := 0; i < eventBufferSize+5; i++ {
-			httpPost(t, srv.URL+"/api/documents", `{"name":"Doc","html":"<p/>"}`)
+		for range eventBufferSize + 5 {
+			httpPost(t, srv.URL+"/api/pages", `{"slug":"slow-sub-page","name":"Page","html":"<p/>"}`)
 		}
 	}()
 
@@ -265,7 +295,7 @@ func TestEvents_UnsubscribeOnDisconnect(t *testing.T) {
 func TestEvents_SubscribeAndDisconnectMultipleTimes(t *testing.T) {
 	srv, h := newEventsTestServer(t)
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		_, closeStream := subscribeSSE(t, srv)
 		waitForSubscriberCount(t, h, 1)
 		closeStream()
@@ -277,7 +307,7 @@ func TestHub_BroadcastWithNoSubscribers_DoesNotPanicOrBlock(t *testing.T) {
 	h := newHub(nil)
 	done := make(chan struct{})
 	go func() {
-		h.broadcast([]byte(`{"id":1}`))
+		h.broadcast("page-created", []byte(`{"slug":"x"}`))
 		close(done)
 	}()
 	select {

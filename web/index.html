@@ -1,81 +1,47 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HyperReader</title>
-  <!--
-    Dark mode FOUC prevention: this must run before app.css loads so
-    data-theme is set on <html> before first paint. Resolution order:
-    stored preference (localStorage) -> OS prefers-color-scheme -> light.
-    app.js owns the toggle + persistence logic; this inline script only
-    resolves the *initial* value synchronously. Wrapped in try/catch so a
-    thrown localStorage access (private/sandboxed contexts) never blocks
-    page load -- it just falls back to light.
-  -->
-  <script>
-    (function () {
-      try {
-        var stored = window.localStorage.getItem("hyperreader-theme");
-        var theme = stored === "dark" || stored === "light"
-          ? stored
-          : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
-              ? "dark"
-              : "light");
-        document.documentElement.dataset.theme = theme;
-      } catch (e) {
-        document.documentElement.dataset.theme = "light";
-      }
-    })();
-  </script>
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
   <!--
-    Single-page web UI for HyperReader. T01 shipped the embed/serving shell.
-    T02 adds the documents table + live FTS5 search (this view). Activating
-    a row opens the document's raw rendered HTML in a new browser tab via
-    the existing GET /api/documents/{id}/content endpoint, with zero app
-    chrome (M002 / Branch B). The empty-state, loading-state, and error
-    regions are wired by T02 so every fetch outcome has a visible surface.
+    Single-page web UI for HyperReader. Activating a row opens the page's
+    raw rendered HTML in a new browser tab via the existing
+    GET /api/pages/{slug}/content endpoint, with zero app chrome. The
+    empty-state, loading-state, and error regions are wired so every fetch
+    outcome has a visible surface.
   -->
   <main id="app">
     <header>
       <h1>HyperReader</h1>
-      <!-- Dark mode toggle (visible from the table view).
-           Label/icon text is set by app.js from the resolved theme, not
-           hardcoded here -- avoids a mismatched label on first paint. -->
-      <button id="theme-toggle" type="button" aria-label="Toggle dark mode"></button>
+      <label for="search" class="visually-hidden">Search pages</label>
+      <input id="search" type="search" placeholder="Search by name or description&hellip;" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <!-- Live-update indicator, driven by the EventSource connection in
+           app.js. data-state cycles connecting -> live -> reconnecting
+           so a dropped SSE connection is visible instead of the table
+           silently going stale. Starts "connecting" until the stream's
+           open event fires (proving the ": connected" comment's headers
+           were flushed). -->
+      <span id="live-status" data-state="connecting" role="status" aria-live="polite"></span>
     </header>
 
-    <!-- Table view: search + documents table (T02) -->
     <section id="table-view">
-      <div class="toolbar">
-        <label for="search" class="visually-hidden">Search documents</label>
-        <input id="search" type="search" placeholder="Search by name, description, or tags&hellip;" autocomplete="off" autocapitalize="off" spellcheck="false">
-        <!-- S04: live-update indicator, driven by the EventSource connection
-             in app.js. data-state cycles connecting -> live -> reconnecting
-             so a dropped SSE connection is visible instead of the table
-             silently going stale. Starts "connecting" until the stream's
-             open event fires (proving the ": connected" comment's headers
-             were flushed). -->
-        <span id="live-status" data-state="connecting" role="status" aria-live="polite"></span>
-      </div>
-
       <!-- Visible until the first fetch resolves; managed by app.js. -->
-      <p id="loading-state" class="empty">Loading documents&hellip;</p>
-      <p id="empty-state" class="empty" hidden>No documents yet.</p>
-      <table id="documents-table" hidden>
+      <p id="loading-state" class="empty">Loading pages&hellip;</p>
+      <p id="empty-state" class="empty" hidden>No pages yet.</p>
+      <table id="pages-table" hidden>
         <thead>
           <tr>
             <th>Name</th>
             <th>Description</th>
-            <th>Tags</th>
           </tr>
         </thead>
         <!-- tbody rows are activatable: a click (or Enter/Space on a
-             focused row) opens the document's raw rendered HTML in a new
-             browser tab via GET /api/documents/{id}/content (M002). -->
+             focused row) opens the page's raw rendered HTML in a new
+             browser tab via GET /api/pages/{slug}/content. -->
         <tbody></tbody>
       </table>
     </section>

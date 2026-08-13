@@ -23,15 +23,23 @@ const heartbeatInterval = 15 * time.Second
 // one slow reader stall the publisher.
 const eventBufferSize = 8
 
+// sseEvent is one broadcast frame: an SSE event name (e.g. "page-created")
+// paired with its JSON payload.
+type sseEvent struct {
+	name    string
+	payload []byte
+}
+
 // hub is a broadcast fan-out for server-sent events. A single instance is
 // shared by GET /api/events (subscribers register a channel) and
-// POST /api/documents (the publisher broadcasts the created document's
-// JSON to every current subscriber). All methods are safe for concurrent
-// use from multiple goroutines, matching net/http's one-goroutine-per-request
-// model.
+// POST /api/pages (the publisher broadcasts the written page's JSON, named
+// page-created or page-updated depending on whether the write created or
+// patched the page, to every current subscriber). All methods are safe for
+// concurrent use from multiple goroutines, matching net/http's
+// one-goroutine-per-request model.
 type hub struct {
 	mu           sync.Mutex
-	subs         map[chan []byte]struct{}
+	subs         map[chan sseEvent]struct{}
 	shutdownDone <-chan struct{}
 }
 
@@ -39,7 +47,7 @@ type hub struct {
 // owning server begins shutdown; a nil channel disables that lifecycle signal.
 func newHub(shutdownDone <-chan struct{}) *hub {
 	return &hub{
-		subs:         make(map[chan []byte]struct{}),
+		subs:         make(map[chan sseEvent]struct{}),
 		shutdownDone: shutdownDone,
 	}
 }
@@ -49,8 +57,8 @@ func newHub(shutdownDone <-chan struct{}) *hub {
 // unsubscribe exactly once, typically via defer, when the connection ends
 // so the hub never leaks a channel or a slot in subs for a client that has
 // gone away.
-func (h *hub) subscribe() (ch chan []byte, unsubscribe func()) {
-	ch = make(chan []byte, eventBufferSize)
+func (h *hub) subscribe() (ch chan sseEvent, unsubscribe func()) {
+	ch = make(chan sseEvent, eventBufferSize)
 
 	h.mu.Lock()
 	h.subs[ch] = struct{}{}
@@ -66,18 +74,20 @@ func (h *hub) subscribe() (ch chan []byte, unsubscribe func()) {
 	}
 }
 
-// broadcast sends payload to every currently-registered subscriber without
-// blocking. If a subscriber's buffer is full — a slow consumer that isn't
-// draining its channel as fast as events arrive — that message is dropped
-// for that subscriber only; broadcast never waits. This is what guarantees
-// a slow or dead browser tab can never delay or fail a POST /api/documents
-// request: the publisher's call into broadcast always returns immediately.
-func (h *hub) broadcast(payload []byte) {
+// broadcast sends an event named name carrying payload to every currently-
+// registered subscriber without blocking. If a subscriber's buffer is full
+// — a slow consumer that isn't draining its channel as fast as events
+// arrive — that message is dropped for that subscriber only; broadcast
+// never waits. This is what guarantees a slow or dead browser tab can never
+// delay or fail a POST /api/pages request: the publisher's call into
+// broadcast always returns immediately.
+func (h *hub) broadcast(name string, payload []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	ev := sseEvent{name: name, payload: payload}
 	for ch := range h.subs {
 		select {
-		case ch <- payload:
+		case ch <- ev:
 		default:
 			// Slow subscriber: drop this event for it rather than block
 			// the publisher. The next heartbeat/event still reaches it
@@ -100,10 +110,10 @@ func (h *hub) subscriberCount() int {
 // events handles GET /api/events: a long-lived text/event-stream response.
 // It writes a ": connected" comment immediately after the headers so a
 // client (or a test) can observe that the response has actually been
-// flushed rather than buffered, then relays broadcast document events and
-// periodic ": ping" heartbeats until the client disconnects (request
-// context cancellation) or the underlying connection is closed by the
-// server shutting down.
+// flushed rather than buffered, then relays broadcast page-created/
+// page-updated events and periodic ": ping" heartbeats until the client
+// disconnects (request context cancellation) or the underlying connection
+// is closed by the server shutting down.
 //
 // Failure modes:
 //   - Client never reads (slow/hung browser tab): handled by hub.broadcast's
@@ -143,14 +153,14 @@ func (h *handlers) events(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-r.Context().Done():
 			return
-		case payload, ok := <-ch:
+		case ev, ok := <-ch:
 			if !ok {
 				// Channel closed by unsubscribe (shouldn't happen while
 				// this same goroutine owns the deferred unsubscribe, but
 				// guarded defensively).
 				return
 			}
-			if _, err := fmt.Fprintf(w, "event: document\ndata: %s\n\n", payload); err != nil {
+			if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", ev.name, ev.payload); err != nil {
 				return
 			}
 			flusher.Flush()

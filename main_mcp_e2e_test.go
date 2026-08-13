@@ -32,7 +32,7 @@ import (
 //
 // It proves two things the in-process tests structurally cannot:
 //  1. send_html forwarded through a real subprocess mcp reaches a real
-//     subprocess serve, and the document becomes observable through
+//     subprocess serve, and the page becomes observable through
 //     serve's own API (get, get-content, and an FTS search hit).
 //  2. When no serve is listening, the real subprocess mcp still returns
 //     IsError=true with an actionable message — never a hang, a crash, or
@@ -53,42 +53,41 @@ func TestMCPSubprocess(t *testing.T) {
 
 		// Distinctive tokens so the FTS search assertion below cannot
 		// false-positive against unrelated rows.
-		const docName = "E2E-Proof-Doc-9f3a"
-		const docHTML = "<h1>hello from the e2e test</h1>"
+		const pageSlug = "e2e-proof-page-9f3a"
+		const pageName = "E2E-Proof-Page-9f3a"
+		const pageHTML = "<h1>hello from the e2e test</h1>"
 
 		res := callSendHTMLTool(t, session, map[string]any{
-			"name":        docName,
-			"html":        docHTML,
+			"slug":        pageSlug,
+			"name":        pageName,
+			"html":        pageHTML,
 			"description": "written by TestMCPSubprocess",
-			"tags":        "e2e,proof",
 		})
 		if res.IsError {
 			t.Fatalf("send_html over real subprocess mcp returned IsError=true: %s", toolResultText(res))
 		}
 		text := toolResultText(res)
-		if !strings.Contains(text, docName) {
-			t.Fatalf("success result text %q does not name the document", text)
+		if !strings.Contains(text, pageSlug) {
+			t.Fatalf("success result text %q does not name the page's slug", text)
 		}
 		t.Logf("send_html result: %s", text)
 
-		id := findDocumentIDByName(t, port, docName)
-
 		// Ground truth: serve's own API, not the tool's self-report.
-		content := getDocumentContent(t, port, id)
-		if content != docHTML {
-			t.Fatalf("GET /api/documents/%d/content = %q, want %q", id, content, docHTML)
+		content := getPageContent(t, port, pageSlug)
+		if content != pageHTML {
+			t.Fatalf("GET /api/pages/%s/content = %q, want %q", pageSlug, content, pageHTML)
 		}
 
-		hits := searchDocuments(t, port, "E2E-Proof-Doc-9f3a")
+		hits := searchPages(t, port, "E2E-Proof-Page-9f3a")
 		found := false
-		for _, d := range hits {
-			if d.Name == docName {
+		for _, p := range hits {
+			if p.Slug == pageSlug {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Fatalf("FTS search for %q found no match among %d result(s)", docName, len(hits))
+			t.Fatalf("FTS search for %q found no match among %d result(s)", pageSlug, len(hits))
 		}
 	})
 
@@ -100,6 +99,7 @@ func TestMCPSubprocess(t *testing.T) {
 		session := connectMCPSubprocess(t, bin, port)
 
 		res := callSendHTMLTool(t, session, map[string]any{
+			"slug": "should-not-persist",
 			"name": "should not persist",
 			"html": "<p>x</p>",
 		})
@@ -189,14 +189,14 @@ func startServeProcess(t *testing.T, bin, dataDir string, port int) *exec.Cmd {
 	return cmd
 }
 
-// waitForServeReady polls GET /api/documents on the given port until serve
+// waitForServeReady polls GET /api/pages on the given port until serve
 // answers 200 or the deadline passes, failing the test on timeout. Polling
 // the real API (rather than a fixed sleep) is what makes the two-process
 // handshake deterministic across slow CI machines.
 func waitForServeReady(t *testing.T, port int, serveCmd *exec.Cmd) {
 	t.Helper()
 	client := &http.Client{Timeout: time.Second}
-	url := fmt.Sprintf("http://127.0.0.1:%d/api/documents", port)
+	url := fmt.Sprintf("http://127.0.0.1:%d/api/pages", port)
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		if serveCmd.ProcessState != nil {
@@ -268,44 +268,23 @@ func toolResultText(res *mcp.CallToolResult) string {
 	return b.String()
 }
 
-// apiDoc mirrors the JSON shape serve's API returns for a document
-// (internal/api.documentResponse) — duplicated here deliberately, same as
+// apiPage mirrors the JSON shape serve's API returns for a page
+// (internal/api.pageResponse) — duplicated here deliberately, same as
 // internal/mcp does, so this test file depends only on the wire contract.
-type apiDoc struct {
-	ID          int64  `json:"id"`
+type apiPage struct {
+	Slug        string `json:"slug"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	Tags        string `json:"tags"`
 	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
-// findDocumentIDByName is the ground-truth check that send_html's HTTP
-// forward actually landed in serve's store: it lists documents through
-// serve's real API (GET /api/documents) and returns the id of the one
-// matching name, failing the test if it is not there.
-func findDocumentIDByName(t *testing.T, port int, name string) int64 {
+func searchPages(t *testing.T, port int, q string) []apiPage {
 	t.Helper()
-	docs := listDocuments(t, port)
-	for _, d := range docs {
-		if d.Name == name {
-			return d.ID
-		}
-	}
-	t.Fatalf("document %q not found via GET /api/documents on port %d (got %d doc(s))", name, port, len(docs))
-	return 0
+	return getPagesJSON(t, fmt.Sprintf("http://127.0.0.1:%d/api/pages?q=%s", port, q))
 }
 
-func listDocuments(t *testing.T, port int) []apiDoc {
-	t.Helper()
-	return getDocumentsJSON(t, fmt.Sprintf("http://127.0.0.1:%d/api/documents", port))
-}
-
-func searchDocuments(t *testing.T, port int, q string) []apiDoc {
-	t.Helper()
-	return getDocumentsJSON(t, fmt.Sprintf("http://127.0.0.1:%d/api/documents?q=%s", port, q))
-}
-
-func getDocumentsJSON(t *testing.T, url string) []apiDoc {
+func getPagesJSON(t *testing.T, url string) []apiPage {
 	t.Helper()
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(url)
@@ -317,19 +296,19 @@ func getDocumentsJSON(t *testing.T, url string) []apiDoc {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET %s status = %d, body = %s", url, resp.StatusCode, body)
 	}
-	var docs []apiDoc
-	if err := json.Unmarshal(body, &docs); err != nil {
+	var pages []apiPage
+	if err := json.Unmarshal(body, &pages); err != nil {
 		t.Fatalf("GET %s: decode response %s: %v", url, body, err)
 	}
-	return docs
+	return pages
 }
 
-// getDocumentContent fetches GET /api/documents/{id}/content — the ground
-// truth for the HTML payload send_html forwarded, independent of what the
-// tool result text claims.
-func getDocumentContent(t *testing.T, port int, id int64) string {
+// getPageContent fetches GET /api/pages/{slug}/content — the ground truth
+// for the HTML payload send_html forwarded, independent of what the tool
+// result text claims.
+func getPageContent(t *testing.T, port int, slug string) string {
 	t.Helper()
-	url := fmt.Sprintf("http://127.0.0.1:%d/api/documents/%d/content", port, id)
+	url := fmt.Sprintf("http://127.0.0.1:%d/api/pages/%s/content", port, slug)
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil {

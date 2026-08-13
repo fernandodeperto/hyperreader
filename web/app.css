@@ -3,55 +3,17 @@
  * T01 shipped the bare shell. T02 adds the search toolbar + table rendering
  * styling. S04-T02 adds the #live-status SSE connection indicator.
  * M002-S02 removed the in-app detail view / iframe / Back button; activating
- * a document row now opens /api/documents/{id}/content in a new browser tab,
- * so only the table view + header + search toolbar remain.
+ * a page row now opens /api/pages/{slug}/content in a new browser tab. The
+ * header and search toolbar were later merged into a single top bar
+ * (title, search, and live-status together), and the app dropped its light
+ * palette to render exclusively in dark theme.
  *
- * Design tokens: :root defines two layers of custom properties —
- * (1) semantic color roles (--bg, --fg, --surface, --accent, --status-*,
- * --error-*) that a [data-theme="dark"] override block redefines with a
- * dark palette, and (2) theme-independent structural tokens (--space-*,
- * --radius-*, --shadow-*, --font-sans) shared by both themes. app.js is
- * the single source of truth for *which* value of data-theme is active
- * (stored preference -> OS prefers-color-scheme -> light) — this file only
- * supplies the palettes + structural scale. */
+ * Design tokens: :root defines (1) semantic color roles (--bg, --fg,
+ * --surface, --accent, --status-*, --error-*) and (2) theme-independent
+ * structural tokens (--space-*, --radius-*, --shadow-*, --font-sans). */
 
 :root {
-  /* Semantic color roles, light palette (default) */
-  --bg: #fafafa;
-  --fg: #111827;
-  --surface: #ffffff;
-  --surface-alt: #f3f4f6;
-  --surface-hover: #eef3fc;
-  --border: #d1d5db;
-  --border-subtle: #e5e7eb;
-  --muted: #6b7280;
-  --accent: #3b6fd4;
-  --accent-ring: rgba(59, 111, 212, 0.15);
-  --status-connecting-fg: #7a5b00;
-  --status-connecting-bg: #fff6e0;
-  --status-live-fg: #0a6b2a;
-  --status-live-bg: #e5f7ea;
-  --status-reconnecting-fg: #b00020;
-  --status-reconnecting-bg: #fde7e9;
-  --error-fg: #b00020;
-  --error-bg: #fde7e9;
-  --error-border: #f3b6ba;
-  --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.06);
-  --shadow-md: 0 4px 16px rgba(17, 24, 39, 0.08);
-
-  /* Structural tokens (theme-independent) */
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.5rem;
-  --space-6: 2rem;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-}
-
-[data-theme="dark"] {
+  /* Semantic color roles */
   --bg: #16181d;
   --fg: #e8e8e8;
   --surface: #1f2229;
@@ -73,6 +35,17 @@
   --error-border: #5c2732;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+
+  /* Structural tokens (theme-independent) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 * {
@@ -95,11 +68,10 @@ body {
   padding: var(--space-6) var(--space-5);
 }
 
-/* Header holds the h1 and the theme toggle, spaced apart. */
+/* Header hosts the title, search field, and live-status indicator together. */
 header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3);
   margin-bottom: var(--space-5);
 }
@@ -110,17 +82,12 @@ header h1 {
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--fg);
-}
-
-.toolbar {
-  margin-bottom: var(--space-5);
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
+  flex: 0 0 auto;
 }
 
 #search {
   flex: 1 1 auto;
+  min-width: 0;
   width: 100%;
   padding: var(--space-2) var(--space-3);
   font: inherit;
@@ -208,7 +175,7 @@ header h1 {
   box-shadow: var(--shadow-sm);
 }
 
-#documents-table {
+#pages-table {
   width: 100%;
   border-collapse: collapse;
   background: var(--surface);
@@ -217,15 +184,15 @@ header h1 {
   box-shadow: var(--shadow-sm);
 }
 
-#documents-table th,
-#documents-table td {
+#pages-table th,
+#pages-table td {
   text-align: left;
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border-subtle);
   vertical-align: top;
 }
 
-#documents-table th {
+#pages-table th {
   background: var(--surface-alt);
   color: var(--muted);
   font-weight: 600;
@@ -234,48 +201,22 @@ header h1 {
   letter-spacing: 0.03em;
 }
 
-#documents-table tbody tr:last-child td {
+#pages-table tbody tr:last-child td {
   border-bottom: none;
 }
 
 /* Rows are clickable (role=button, tabIndex=0) — give them an obvious
  * pointer + hover/focus affordance so activation is discoverable. */
-#documents-table tbody tr {
+#pages-table tbody tr {
   cursor: pointer;
   transition: background-color 0.12s ease;
 }
 
-#documents-table tbody tr:hover {
+#pages-table tbody tr:hover {
   background: var(--surface-hover);
 }
 
-#documents-table tbody tr:focus {
+#pages-table tbody tr:focus {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
-}
-
-/* The header's dark-mode toggle button chrome. The former Back button shared
- * this styling; it was removed with the in-app detail view in M002-S02. */
-#theme-toggle {
-  font: inherit;
-  font-weight: 600;
-  font-size: 0.85rem;
-  white-space: nowrap;
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--fg);
-  cursor: pointer;
-  transition: background-color 0.12s ease, border-color 0.12s ease;
-}
-
-#theme-toggle:hover {
-  background: var(--surface-alt);
-}
-
-#theme-toggle:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-ring);
 }

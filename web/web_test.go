@@ -78,21 +78,21 @@ func TestHandler_UnknownPath404(t *testing.T) {
 	}
 }
 
-// TestHandler_TableAndSearchSurfaces is the T02 build-time gate: it proves
-// the embedded UI actually contains the document-table + live-FTS5-search
-// surfaces T02 claims to ship, so a regression that strips them fails the
-// Go test suite (not just a later browser check). It asserts presence of
-// the search input, the documents table skeleton, and the app.js wiring
-// that drives GET /api/documents?q=<encoded> (the real S01 FTS5 search,
-// not a client-side filter). The live browser behavior is proven by T03's
-// Playwright smoke; this gate only proves the surfaces are embedded.
+// TestHandler_TableAndSearchSurfaces is the build-time gate proving the
+// embedded UI actually contains the page-table + live-FTS5-search surfaces
+// this app claims to ship, so a regression that strips them fails the Go
+// test suite (not just a later browser check). It asserts presence of the
+// search input, the pages table skeleton, and the app.js wiring that
+// drives GET /api/pages?q=<encoded> (the real FTS5 search, not a
+// client-side filter). The live browser behavior is proven by the
+// Playwright smoke suite; this gate only proves the surfaces are embedded.
 func TestHandler_TableAndSearchSurfaces(t *testing.T) {
-	// index.html must contain the search input and the documents table
+	// index.html must contain the search input and the pages table
 	// skeleton (tbody is populated by app.js at runtime).
 	html := serveBody(t, "/")
 	for _, want := range []string{
 		`id="search"`,
-		`id="documents-table"`,
+		`id="pages-table"`,
 		`<tbody></tbody>`,
 		`id="empty-state"`,
 		`id="error-message"`,
@@ -105,11 +105,11 @@ func TestHandler_TableAndSearchSurfaces(t *testing.T) {
 	// app.js must drive the real FTS5 API: the list endpoint, the ?q=
 	// search-param encoding, the AbortController last-write-wins guard, and
 	// the debounced input handler. Their presence proves the table is
-	// populated by a live fetch against /api/documents (not hardcoded) and
+	// populated by a live fetch against /api/pages (not hardcoded) and
 	// that search hits the same endpoint with ?q=.
 	js := serveBody(t, "/app.js")
 	for _, want := range []string{
-		`/api/documents`,           // list/search endpoint
+		`/api/pages`,               // list/search endpoint
 		`?q=`,                      // FTS5 search-param encoding
 		`encodeURIComponent`,       // query is URL-encoded
 		`AbortController`,          // last-write-wins guard for fast typing
@@ -122,22 +122,22 @@ func TestHandler_TableAndSearchSurfaces(t *testing.T) {
 	}
 }
 
-// TestHandler_NewTabSurfaces is the M002 / Branch B build-time gate: it
-// proves the embedded UI opens a document's raw rendered HTML in a new
-// browser tab via GET /api/documents/{id}/content with zero app chrome,
-// and that the in-app detail-view/iframe/Back surfaces have been removed
-// entirely (not hidden). It asserts the app.js wiring (window.open to the
-// content endpoint with _blank, row click + keydown activation) and guards
-// against a regression that silently reintroduces the removed iframe/view.
-// The live browser behavior (click opens a new tab, script executes
-// unsandboxed at top level) is proven by T03's Playwright specs; this gate
-// only proves the surfaces are embedded, so a regression that strips them
-// fails the Go test suite (not just a later browser check).
+// TestHandler_NewTabSurfaces is the build-time gate proving the embedded UI
+// opens a page's raw rendered HTML in a new browser tab via
+// GET /api/pages/{slug}/content with zero app chrome, and that no in-app
+// detail-view/iframe/Back surfaces exist. It asserts the app.js wiring
+// (window.open to the content endpoint with _blank, row click + keydown
+// activation) and guards against a regression that silently reintroduces
+// a removed iframe/view. The live browser behavior (click opens a new tab,
+// script executes unsandboxed at top level) is proven by the Playwright
+// specs; this gate only proves the surfaces are embedded, so a regression
+// that strips them fails the Go test suite (not just a later browser
+// check).
 func TestHandler_NewTabSurfaces(t *testing.T) {
 	html := serveBody(t, "/")
 	// The removed detail-view surfaces must be GONE entirely (regression
-	// guard for the Branch B removal — a reintroduction that hides rather
-	// than deletes them would re-add these and fail here).
+	// guard — a reintroduction that hides rather than deletes them would
+	// re-add these and fail here).
 	for _, gone := range []string{
 		`id="detail-view"`,
 		`id="detail-frame"`,
@@ -145,7 +145,7 @@ func TestHandler_NewTabSurfaces(t *testing.T) {
 		`<iframe`,
 	} {
 		if strings.Contains(html, gone) {
-			t.Errorf("index.html must not contain removed surface %q (Branch B deletes the detail view)", gone)
+			t.Errorf("index.html must not contain removed surface %q", gone)
 		}
 	}
 
@@ -153,10 +153,10 @@ func TestHandler_NewTabSurfaces(t *testing.T) {
 	// with _blank, and row activation via click + keydown delegation.
 	js := serveBody(t, "/app.js")
 	for _, want := range []string{
-		`/content`,                   // GET /api/documents/{id}/content
+		`/content`,                   // GET /api/pages/{slug}/content
 		`window.open`,                // opens the content endpoint in a new tab
 		`_blank`,                     // target is a new tab, not in-app
-		`encodeURIComponent`,         // id is URL-encoded into the path
+		`encodeURIComponent`,         // slug is URL-encoded into the path
 		`addEventListener("click"`,   // row click delegation
 		`addEventListener("keydown"`, // row keyboard activation (Enter/Space)
 	} {
@@ -166,17 +166,17 @@ func TestHandler_NewTabSurfaces(t *testing.T) {
 	}
 }
 
-// TestHandler_LiveUpdateSurfaces is the S04-T02 build-time gate: it proves
-// the embedded UI contains the live-SSE-update surfaces this task claims to
+// TestHandler_LiveUpdateSurfaces is the build-time gate proving the
+// embedded UI contains the live-SSE-update surfaces this app claims to
 // ship — the #live-status indicator (with its data-state attribute) in
 // index.html, and the app.js wiring that subscribes to GET /api/events via
-// a native EventSource, mirrors its lifecycle into #live-status, prepends
-// broadcast "document" events as new rows, and guards against a malformed
-// event payload (invalid JSON, or JSON that isn't a document-shaped object)
-// by logging via console.error and skipping rather than throwing. The live
-// browser behavior (a document appears with no refresh) is proven by T03's
-// Playwright spec; this gate only proves the surfaces are embedded, so a
-// regression that strips them fails the Go test suite (not just a later
+// a native EventSource, mirrors its lifecycle into #live-status, listens
+// for both page-created and page-updated events, and guards against a
+// malformed event payload (invalid JSON, or JSON that isn't a page-shaped
+// object) by logging via console.error and skipping rather than throwing.
+// The live browser behavior (a page appears with no refresh) is proven by
+// the Playwright spec; this gate only proves the surfaces are embedded, so
+// a regression that strips them fails the Go test suite (not just a later
 // browser check).
 func TestHandler_LiveUpdateSurfaces(t *testing.T) {
 	html := serveBody(t, "/")
@@ -191,14 +191,15 @@ func TestHandler_LiveUpdateSurfaces(t *testing.T) {
 
 	js := serveBody(t, "/app.js")
 	for _, want := range []string{
-		`/api/events`,                 // SSE subscribe endpoint
-		`EventSource`,                 // native browser streaming client
-		`addEventListener("document"`, // broadcast event name from internal/api
-		`dataset.state`,               // drives #live-status's data-state attribute
-		`JSON.parse`,                  // decodes the event payload
-		`catch`,                       // malformed (non-JSON) payload is caught, not thrown
-		`console.error`,               // malformed payload is logged, not swallowed silently
-		`unshift`,                     // new document prepended as the new top row
+		`/api/events`,                     // SSE subscribe endpoint
+		`EventSource`,                     // native browser streaming client
+		`addEventListener("page-created"`, // creation event listener
+		`addEventListener("page-updated"`, // patch event listener
+		`dataset.state`,                   // drives #live-status's data-state attribute
+		`JSON.parse`,                      // decodes the event payload
+		`catch`,                           // malformed (non-JSON) payload is caught, not thrown
+		`console.error`,                   // malformed payload is logged, not swallowed silently
+		`unshift`,                         // page prepended as the new top row
 	} {
 		if !strings.Contains(js, want) {
 			t.Errorf("app.js missing %q", want)

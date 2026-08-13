@@ -1,17 +1,18 @@
-// Playwright proof for S04-T03: live SSE row append with no page refresh,
-// then that live-appended row opens its document in a new browser tab
-// (R002/R006 continuity).
+// Playwright proof for the live-page-updates slice: live SSE row append
+// with no page refresh, then that live-appended row opens its page in a
+// new browser tab (R002/R006 continuity).
 //
 // This runs against the REAL `hyperreader serve` binary (see
 // playwright.config.ts webServer) — the same process the smoke suite uses.
-// It proves the S04 slice's core UI contract:
+// It proves the live-page-updates slice's core UI contract:
 //   1. the page opens and its EventSource connects (#live-status -> "live")
-//   2. a document ingested through the running server's real API — while
-//      the page stays open and idle — appears as a new top row via the SSE
-//      broadcast, with NO fetch-driven re-render and NO page reload
+//   2. a page created through the running server's real API — while the
+//      page stays open and idle — appears as a new top row via the
+//      page-created SSE broadcast, with NO fetch-driven re-render and NO
+//      page reload
 //   3. that live-appended row behaves like any other row: activating it
 //      opens its raw rendered HTML in a NEW BROWSER TAB via window.open to
-//      GET /api/documents/{id}/content, where the doc's inline <script>
+//      GET /api/pages/{slug}/content, where the page's inline <script>
 //      runs and leaves a marker (R006: unsandboxed rendering at the top
 //      level, not inside an in-app iframe — M002 / Branch B removed that
 //      surface entirely)
@@ -26,15 +27,15 @@
 // the row arrived via the EventSource/DOM path, not a reload.
 import { test, expect, type Page, type Locator } from "@playwright/test";
 
-// A document whose HTML contains an inline <script> that writes a marker
-// into the DOM, plus a static marker — same proof shape as e2e/smoke.spec.ts
+// A page whose HTML contains an inline <script> that writes a marker into
+// the DOM, plus a static marker — same proof shape as e2e/smoke.spec.ts
 // (R006: unsandboxed rendering). The inserted id uses double quotes inside a
 // single-quoted JS string to avoid nested-quote escaping ambiguity.
-function liveDoc(uniqueName: string) {
+function livePage(slug: string, uniqueName: string) {
   return {
+    slug,
     name: uniqueName,
     description: "pushed while the page was open, via SSE",
-    tags: "live,sse",
     html:
       "<!DOCTYPE html><html><head><title>Live</title></head>" +
       "<body><h1>Live</h1><p id='static-marker'>static</p>" +
@@ -45,14 +46,14 @@ function liveDoc(uniqueName: string) {
 }
 
 function tableRows(page: Page) {
-  return page.locator("#documents-table tbody tr");
+  return page.locator("#pages-table tbody tr");
 }
 
-// openRowInNewTab clicks a document row and returns the popup Page that
-// window.open produced (Branch B: GET /api/documents/{id}/content in a new
+// openRowInNewTab clicks a page row and returns the popup Page that
+// window.open produced (Branch B: GET /api/pages/{slug}/content in a new
 // top-level tab with zero app chrome). The popup promise is registered
 // BEFORE the click so Playwright captures the popup event regardless of
-// timing. waitForLoadState("domcontentloaded") ensures the document's HTML
+// timing. waitForLoadState("domcontentloaded") ensures the page's HTML
 // (and its inline <script>) has parsed before the caller asserts on markers.
 async function openRowInNewTab(page: Page, row: Locator): Promise<Page> {
   const popupPromise = page.waitForEvent("popup");
@@ -63,11 +64,13 @@ async function openRowInNewTab(page: Page, row: Locator): Promise<Page> {
 }
 
 test("live row append with no refresh, then new-tab open on that live row", async ({ page }) => {
-  // A name unique to this test run so the FTS5 search step at the end can
-  // isolate this exact row regardless of whatever else the shared store
+  // A slug/name unique to this test run so the FTS5 search step at the end
+  // can isolate this exact row regardless of whatever else the shared store
   // (webServer runs once for the whole suite) already contains.
-  const uniqueName = "SSE Live Doc " + Date.now();
-  const doc = liveDoc(uniqueName);
+  const timestamp = Date.now();
+  const slug = "sse-live-page-" + timestamp;
+  const uniqueName = "SSE Live Page " + timestamp;
+  const doc = livePage(slug, uniqueName);
 
   // 1. Open the UI and let the initial table fetch + EventSource connect.
   await page.goto("/");
@@ -76,8 +79,8 @@ test("live row append with no refresh, then new-tab open on that live row", asyn
   const liveStatus = page.locator("#live-status");
   // The stream flushes ": connected" immediately on subscribe, which the
   // browser surfaces as EventSource's "open" event -> app.js flips
-  // #live-status to "live". Wait for that before pushing the document so
-  // the test proves the *subscribed* connection delivered the event, not a
+  // #live-status to "live". Wait for that before pushing the page so the
+  // test proves the *subscribed* connection delivered the event, not a
   // lucky race with the initial fetch.
   await expect(liveStatus).toHaveAttribute("data-state", "live", { timeout: 10_000 });
 
@@ -91,19 +94,20 @@ test("live row append with no refresh, then new-tab open on that live row", asyn
     (window as unknown as { __sseLiveSentinel: string }).__sseLiveSentinel = "still-here";
   });
 
-  // 2. Ingest a document through the running server's real API while the
-  // page stays open and idle — this is the "agent pushes a doc" side of
-  // the live-update contract (T04 proves it via a real separate mcp OS
-  // process; this test proves the browser-visible half via the same real
-  // HTTP endpoint the mcp server calls into).
-  const createRes = await page.request.post("/api/documents", { data: doc });
+  // 2. Create a page through the running server's real API while the page
+  // stays open and idle — this is the "agent pushes a page" side of the
+  // live-update contract (the two-process acceptance spec proves it via a
+  // real separate mcp OS process; this test proves the browser-visible half
+  // via the same real HTTP endpoint the mcp server calls into).
+  const createRes = await page.request.post("/api/pages", { data: doc });
   expect(createRes.ok()).toBeTruthy();
   const created = await createRes.json();
-  expect(created.id).toBeGreaterThan(0);
+  expect(created.slug).toBe(slug);
 
   // 3. The new row appears live: no page.reload(), no manual re-fetch call
   // from the test — only the count growing and the top row matching proves
-  // the SSE broadcast -> EventSource -> DOM prepend path worked.
+  // the page-created SSE broadcast -> EventSource -> DOM prepend path
+  // worked.
   await expect(rows).toHaveCount(initialCount + 1, { timeout: 10_000 });
   await expect(rows.nth(0)).toContainText(uniqueName);
 
@@ -122,14 +126,14 @@ test("live row append with no refresh, then new-tab open on that live row", asyn
   await expect(page.locator("#back-button")).toHaveCount(0);
 
   // 4. Activate the live-appended row -> its raw rendered HTML opens in a
-  //    new browser tab (window.open to /api/documents/{id}/content), same
-  //    as any other row (R006 continuity for live rows — now proven in the
+  //    new browser tab (window.open to /api/pages/{slug}/content), same as
+  //    any other row (R006 continuity for live rows — now proven in the
   //    new-tab context, not an in-app iframe).
   const popup = await openRowInNewTab(page, rows.nth(0));
-  await expect(popup).toHaveURL(/\/api\/documents\/\d+\/content$/);
+  await expect(popup).toHaveURL(/\/api\/pages\/[a-z0-9-]+\/content$/);
 
   // Branch B: the table view is never hidden — it stays visible while the
-  // document opens in a separate tab (no in-app view-switching).
+  // page opens in a separate tab (no in-app view-switching).
   await expect(page.locator("#table-view")).toBeVisible();
 
   await expect(popup.locator("#static-marker")).toHaveText("static");
@@ -144,7 +148,7 @@ test("live row append with no refresh, then new-tab open on that live row", asyn
   await popup.close();
   await expect(page.locator("#table-view")).toBeVisible();
   await expect(rows).toHaveCount(initialCount + 1);
-  await expect(page.locator("#documents-table tbody tr", { hasText: uniqueName })).toBeVisible();
+  await expect(page.locator("#pages-table tbody tr", { hasText: uniqueName })).toBeVisible();
 
   // 6. The live row is searchable via the real FTS5 API, not just present
   // in the DOM from the prepend.

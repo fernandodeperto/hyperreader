@@ -74,7 +74,7 @@ func TestRun_BootstrapAndServe(t *testing.T) {
 	go func() { errCh <- Run(ctx, cfg) }()
 
 	// Poll until the server is accepting connections.
-	url := "http://127.0.0.1:" + strconv(port) + "/api/documents"
+	url := "http://127.0.0.1:" + strconv(port) + "/api/pages"
 	client := &http.Client{Timeout: time.Second}
 	var status int
 	var body string
@@ -97,7 +97,7 @@ func TestRun_BootstrapAndServe(t *testing.T) {
 		break
 	}
 	if status != 200 {
-		t.Fatalf("GET /api/documents status = %d (body %q), want 200", status, body)
+		t.Fatalf("GET /api/pages status = %d (body %q), want 200", status, body)
 	}
 	if got := strings.TrimSpace(body); got != "[]" {
 		t.Fatalf("empty store list body = %q, want []", got)
@@ -208,7 +208,7 @@ func TestRun_ShutdownDrainsActiveRequest(t *testing.T) {
 	ready := false
 
 	for time.Now().Before(readyDeadline) {
-		response, err := http.Get(base + "/api/documents")
+		response, err := http.Get(base + "/api/pages")
 		if err == nil {
 			response.Body.Close()
 			ready = true
@@ -240,7 +240,7 @@ func TestRun_ShutdownDrainsActiveRequest(t *testing.T) {
 	}
 	defer lockConn.ExecContext(context.Background(), "ROLLBACK")
 
-	request, err := http.NewRequest(http.MethodPost, base+"/api/documents", strings.NewReader(`{"name":"draining request"}`))
+	request, err := http.NewRequest(http.MethodPost, base+"/api/pages", strings.NewReader(`{"slug":"draining-request","name":"draining request"}`))
 	if err != nil {
 		t.Fatalf("build ingest request: %v", err)
 	}
@@ -288,12 +288,12 @@ func TestRun_ShutdownDrainsActiveRequest(t *testing.T) {
 	select {
 	case result := <-responseCh:
 		if result.err != nil {
-			t.Fatalf("POST /api/documents: %v", result.err)
+			t.Fatalf("POST /api/pages: %v", result.err)
 		}
 		defer result.response.Body.Close()
 		if result.response.StatusCode != http.StatusCreated {
 			body, _ := io.ReadAll(result.response.Body)
-			t.Fatalf("POST /api/documents status = %d (body %q), want 201", result.response.StatusCode, body)
+			t.Fatalf("POST /api/pages status = %d (body %q), want 201", result.response.StatusCode, body)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("active request did not complete during shutdown")
@@ -311,7 +311,7 @@ func TestRun_ShutdownDrainsActiveRequest(t *testing.T) {
 
 // TestRun_ComposesAPIAndUI proves the T01 composition must-have: a single
 // server.Run process serves the embedded UI at GET / (200, text/html) and
-// the S01 API at GET /api/documents (200, "[]") through the same composed
+// the S01 API at GET /api/pages (200, "[]") through the same composed
 // mux on one port. This guards against two regressions: (a) the UI handler
 // masking the API via the catch-all "/", and (b) mounting the UI breaking
 // the already-passing API empty-list response. It complements the existing
@@ -341,7 +341,7 @@ func TestRun_ComposesAPIAndUI(t *testing.T) {
 	// Poll until the server is accepting connections.
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		resp, err := client.Get(base + "/api/documents")
+		resp, err := client.Get(base + "/api/pages")
 		if err != nil {
 			select {
 			case err := <-errCh:
@@ -372,17 +372,17 @@ func TestRun_ComposesAPIAndUI(t *testing.T) {
 		t.Fatalf("GET / body missing expected <title>; got: %s", body)
 	}
 
-	// API surface: GET /api/documents still returns [] through the composed
+	// API surface: GET /api/pages still returns [] through the composed
 	// server (no regression to S01). Proves the UI catch-all does not mask
 	// the API route.
-	resp, err = client.Get(base + "/api/documents")
+	resp, err = client.Get(base + "/api/pages")
 	if err != nil {
-		t.Fatalf("GET /api/documents: %v", err)
+		t.Fatalf("GET /api/pages: %v", err)
 	}
 	apiBody, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	if resp.StatusCode != 200 {
-		t.Fatalf("GET /api/documents status = %d (body %q), want 200", resp.StatusCode, apiBody)
+		t.Fatalf("GET /api/pages status = %d (body %q), want 200", resp.StatusCode, apiBody)
 	}
 	if got := strings.TrimSpace(string(apiBody)); got != "[]" {
 		t.Fatalf("empty store list body = %q, want []", got)

@@ -29,13 +29,15 @@ hyperreader mcp  ───────────►  hyperreader serve  ──
                                      ▼
                               Browser at http://localhost:7420/
                               (table view, search, live SSE updates,
-                               detail view for a given document)
+                               content view for a given page)
 ```
 
-- `send_html` posts to `serve`'s `POST /api/documents` and returns the new
-  document's id/name, or an error if `serve` isn't reachable.
-- The web UI polls/streams `GET /api/events` (SSE) so newly ingested
-  documents appear live without a manual refresh.
+- `send_html` posts to `serve`'s `POST /api/pages`, keyed by an
+  agent-supplied slug: a new slug creates a page (`201`) and an existing
+  slug patches it in place (`200`), returning the page's slug/name, or an
+  error if `serve` isn't reachable.
+- The web UI polls/streams `GET /api/events` (SSE) so newly created or
+  patched pages appear live without a manual refresh.
 
 ## Install
 
@@ -151,7 +153,7 @@ binary name, MCP server name, environment variables (`HTML_MCP_DATA_DIR` /
 data directory (`html-mcp` → `hyperreader`) have all changed with **no
 runtime fallback** to the old names or paths.
 
-Existing documents are **not** picked up automatically. If you want to
+Existing pages are **not** picked up automatically. If you want to
 keep them, move the old data directory into the new location before
 starting the new binary, e.g.:
 
@@ -176,7 +178,7 @@ approach works.
 main.go                    CLI entrypoint, subcommand dispatch (serve/mcp)
 internal/config/           XDG data dir + port resolution (flag > env > default)
 internal/server/           serve subcommand wiring: bind, storage, router, shutdown
-internal/api/              HTTP API: POST/GET /api/documents, GET /api/events (SSE)
+internal/api/              HTTP API: POST/GET /api/pages, GET /api/events (SSE)
 internal/storage/          SQLite storage layer + FTS5 search
 internal/mcp/              stdio MCP server (send_html tool), forwards to serve's API
 web/                       Embedded web UI (index.html, app.js, app.css) via go:embed
@@ -280,21 +282,23 @@ All endpoints are served by `hyperreader serve`:
 
 | Method | Path                          | Description                                   |
 |--------|-------------------------------|------------------------------------------------|
-| POST   | `/api/documents`               | Ingest a document (`{name, description, tags, html}`) |
-| GET    | `/api/documents`               | List documents, most-recent-first; `?q=` searches name/description/tags |
-| GET    | `/api/documents/{id}`          | Get document metadata                          |
-| GET    | `/api/documents/{id}/content`  | Get raw HTML content (`Content-Type: text/html`) |
-| GET    | `/api/events`                  | Server-Sent Events stream; broadcasts newly ingested documents |
+| POST   | `/api/pages`                   | Create or patch a page by slug (`{slug, name, description, html}`); `201` on create, `200` on patch |
+| GET    | `/api/pages`                   | List pages, most-recently-changed-first; `?q=` searches name/description |
+| GET    | `/api/pages/{slug}`            | Get page metadata                              |
+| GET    | `/api/pages/{slug}/content`    | Get raw HTML content (`Content-Type: text/html`) |
+| GET    | `/api/events`                  | Server-Sent Events stream; broadcasts `page-created` and `page-updated` |
 
-`name` is required on ingest; `description`, `tags`, and `html` default to
-empty strings.
+`slug` and `name` are required on write; `description` and `html` default
+to empty strings. `slug` must match `^[a-z0-9]+(-[a-z0-9]+)*$` (max 80
+characters) and `description` is capped at 200 characters; either
+violation is rejected with `400` and no write.
 
 ### Data storage
 
 `serve` creates its data directory on startup if it doesn't exist:
 
-- `docs.db` — SQLite database (document metadata + FTS5 index)
-- `files/` — raw HTML content per document
+- `docs.db`: SQLite database (page metadata + FTS5 index)
+- `files/`: raw HTML content per page
 
 Only one `serve` instance can bind a given port at a time; a second
 instance on the same port fails fast with a clear error instead of

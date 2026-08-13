@@ -1,14 +1,14 @@
 // Package mcp implements the "hyperreader mcp" subcommand: a thin stdio MCP
 // server that exposes a single tool, send_html, which forwards an HTML
-// document to the running serve process over localhost HTTP.
+// page to the running serve process over localhost HTTP.
 //
-// The mcp process owns no storage of its own. It depends only on the S01
-// HTTP ingest contract — POST /api/documents with a JSON body
-// {name, description, tags, html} returning 201 + a documentResponse — and
-// on the resolved serve port (config.DefaultPort + override chain). This
-// preserves the two-process boundary: serve owns the SQLite DB and HTML
-// files; the mcp process is a disposable forwarder an AI agent's MCP client
-// launches and tears down at will.
+// The mcp process owns no storage of its own. It depends only on serve's
+// HTTP write contract — POST /api/pages with a JSON body
+// {slug, name, description, html} returning 201 (create) or 200 (patch)
+// plus a pageResponse — and on the resolved serve port (config.DefaultPort
+// + override chain). This preserves the two-process boundary: serve owns
+// the SQLite DB and HTML files; the mcp process is a disposable forwarder
+// an AI agent's MCP client launches and tears down at will.
 //
 // Error reporting follows the MCP convention (and R005): a tool failure —
 // serve not running (connection refused), an HTTP 4xx/5xx, or a malformed
@@ -46,35 +46,35 @@ const httpClientTimeout = 10 * time.Second
 
 // sendHTMLArgs is the typed argument struct for the send_html tool. The
 // go-sdk's generic AddTool derives the JSON input schema from these struct
-// tags, so an agent sees name+html as required and description+tags as
+// tags, so an agent sees slug+name+html as required and description as
 // optional without a separate schema declaration.
 type sendHTMLArgs struct {
-	Name        string `json:"name" jsonschema:"the document name (required)"`
-	HTML        string `json:"html" jsonschema:"the HTML document body (required)"`
-	Description string `json:"description,omitempty" jsonschema:"optional human-readable description"`
-	Tags        string `json:"tags,omitempty" jsonschema:"optional comma-separated tags"`
+	Slug        string `json:"slug" jsonschema:"the page slug (required): lowercase letters, digits and single dashes between words, matching ^[a-z0-9]+(-[a-z0-9]+)*$, max 80 characters. Writing an existing slug patches that page."`
+	Name        string `json:"name" jsonschema:"the page name (required)"`
+	HTML        string `json:"html" jsonschema:"the HTML page body (required)"`
+	Description string `json:"description,omitempty" jsonschema:"optional human-readable description, max 200 characters"`
 }
 
-// forwardRequest is the JSON body posted to serve's POST /api/documents. Its
-// shape mirrors internal/api.createRequest exactly — the mcp process must
+// forwardRequest is the JSON body posted to serve's POST /api/pages. Its
+// shape mirrors internal/api.pageRequest exactly — the mcp process must
 // never import the serve package, so the struct is duplicated here to keep
 // the dependency a pure HTTP contract (the integration closure).
 type forwardRequest struct {
+	Slug        string `json:"slug"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	Tags        string `json:"tags"`
 	HTML        string `json:"html"`
 }
 
-// documentResponse mirrors internal/api.documentResponse: the JSON serve
-// returns on a successful ingest. Only the fields the tool surfaces to the
-// agent are decoded.
-type documentResponse struct {
-	ID          int64  `json:"id"`
+// pageResponse mirrors internal/api.pageResponse: the JSON serve returns
+// on a successful write. Only the fields the tool surfaces to the agent
+// are decoded.
+type pageResponse struct {
+	Slug        string `json:"slug"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	Tags        string `json:"tags"`
 	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 // errorResponse mirrors internal/api.errorResponse: the JSON serve returns
@@ -109,7 +109,7 @@ func newServer(port int) *mcp.Server {
 	srv := mcp.NewServer(&mcp.Implementation{Name: serverName, Version: serverVersion}, nil)
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "send_html",
-		Description: "Send an HTML document to HyperReader, the always-open HTML reader for agent output. The document is persisted by the running serve process and appears in its list view. Returns the new document's id and name on success; returns an error (visible to the agent) if serve is not running or rejects the document.",
+		Description: "Send an HTML page to HyperReader, the always-open HTML reader for agent output. The page is persisted by the running serve process and appears in its list view, keyed by the supplied slug: a new slug creates a page, an existing slug patches it (full-body replacement). Returns the page's slug and name on success; returns an error (visible to the agent) if serve is not running or rejects the page.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args sendHTMLArgs) (*mcp.CallToolResult, any, error) {
 		result, err := forward(ctx, port, args)
 		if err != nil {
@@ -123,12 +123,20 @@ func newServer(port int) *mcp.Server {
 	return srv
 }
 
-// forward posts args to the serve process's POST /api/documents endpoint
-// and returns a success CallToolResult, or a descriptive error. The error
-// is always meant to be wrapped into an errorResult by the caller — it
+// forward posts args to the serve process's POST /api/pages endpoint and
+// returns a success CallToolResult, or a descriptive error. The error is
+// always meant to be wrapped into an errorResult by the caller — it
 // carries a human-readable message naming the port/cause so a debugging
 // agent can locate the intended serve instance.
 func forward(ctx context.Context, port int, args sendHTMLArgs) (*mcp.CallToolResult, error) {
+	if args.Slug == "" {
+		// The serve API rejects a missing/invalid slug with 400; failing
+		// fast here on the empty case avoids a round-trip for the most
+		// common mistake. Still surfaces as IsError=true (the caller
+		// wraps it). Full slug-shape validation stays server-side (serve
+		// owns the validation rule; the mcp process never imports it).
+		return nil, fmt.Errorf("send_html: slug is required")
+	}
 	if args.Name == "" {
 		// The serve API rejects a missing name with 400; failing fast here
 		// avoids a round-trip and gives a clearer message. Still surfaces
@@ -137,16 +145,16 @@ func forward(ctx context.Context, port int, args sendHTMLArgs) (*mcp.CallToolRes
 	}
 
 	body, err := json.Marshal(forwardRequest{
+		Slug:        args.Slug,
 		Name:        args.Name,
 		Description: args.Description,
-		Tags:        args.Tags,
 		HTML:        args.HTML,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("encode request: %w", err)
 	}
 
-	url := fmt.Sprintf("http://localhost:%d/api/documents", port)
+	url := fmt.Sprintf("http://localhost:%d/api/pages", port)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("build request to %s: %w", url, err)
@@ -166,21 +174,25 @@ func forward(ctx context.Context, port int, args sendHTMLArgs) (*mcp.CallToolRes
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusCreated {
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		// Surface serve's error message verbatim so the agent can react
 		// (e.g. a 400 "name is required" or a 500 storage failure).
 		msg := readServeError(resp)
 		return nil, fmt.Errorf("serve returned HTTP %d for %s: %s", resp.StatusCode, url, msg)
 	}
+	action := "updated"
+	if resp.StatusCode == http.StatusCreated {
+		action = "created"
+	}
 
-	var doc documentResponse
-	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+	var page pageResponse
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
 		return nil, fmt.Errorf("decode serve response: %w", err)
 	}
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: fmt.Sprintf("Document %q ingested (id=%d) via serve on port %d. View it at http://localhost:%d/", doc.Name, doc.ID, port, port)},
+			&mcp.TextContent{Text: fmt.Sprintf("Page %q (slug=%s) %s via serve on port %d. View it at http://localhost:%d/api/pages/%s/content", page.Name, page.Slug, action, port, port, page.Slug)},
 		},
 	}, nil
 }

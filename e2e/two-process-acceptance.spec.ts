@@ -12,11 +12,11 @@
 // sends, which is what makes it non-mockable at the protocol boundary.
 //
 // It proves the full agent-to-browser loop: send_html over the second
-// process's stdio -> serve's POST /api/documents -> serve's SSE broadcast
+// process's stdio -> serve's POST /api/pages -> serve's SSE broadcast
 // -> the already-open page's EventSource -> a new top row, with no manual
 // refresh — then activating that row opens its raw rendered HTML in a NEW
-// BROWSER TAB (window.open to GET /api/documents/{id}/content) where the
-// doc's inline <script> runs and leaves a marker (R006: unsandboxed
+// BROWSER TAB (window.open to GET /api/pages/{slug}/content) where the
+// page's inline <script> runs and leaves a marker (R006: unsandboxed
 // rendering at the top level, not inside an in-app iframe — M002 / Branch
 // B removed that surface entirely). The table stays visible the whole
 // time, and the row remains present and FTS5-searchable after the popup is
@@ -33,14 +33,14 @@ import path from "node:path";
 const port = Number(process.env.PORT) || 7421;
 
 function tableRows(page: Page) {
-  return page.locator("#documents-table tbody tr");
+  return page.locator("#pages-table tbody tr");
 }
 
-// openRowInNewTab clicks a document row and returns the popup Page that
-// window.open produced (Branch B: GET /api/documents/{id}/content in a new
+// openRowInNewTab clicks a page row and returns the popup Page that
+// window.open produced (Branch B: GET /api/pages/{slug}/content in a new
 // top-level tab with zero app chrome). The popup promise is registered
 // BEFORE the click so Playwright captures the popup event regardless of
-// timing. waitForLoadState("domcontentloaded") ensures the document's HTML
+// timing. waitForLoadState("domcontentloaded") ensures the page's HTML
 // (and its inline <script>) has parsed before the caller asserts on markers.
 async function openRowInNewTab(page: Page, row: Locator): Promise<Page> {
   const popupPromise = page.waitForEvent("popup");
@@ -187,8 +187,10 @@ test("milestone acceptance: real mcp OS process pushes send_html into a real ope
     (window as unknown as { __acceptanceSentinel: string }).__acceptanceSentinel = "still-here";
   });
 
-  const uniqueName = "Two-Process Acceptance Doc " + Date.now();
-  const docHTML =
+  const timestamp = Date.now();
+  const uniqueSlug = "two-process-acceptance-page-" + timestamp;
+  const uniqueName = "Two-Process Acceptance Page " + timestamp;
+  const pageHTML =
     "<!DOCTYPE html><html><head><title>Acceptance</title></head>" +
     "<body><h1>Acceptance</h1><p id='static-marker'>static</p>" +
     "<script>document.body.insertAdjacentHTML('beforeend'," +
@@ -214,10 +216,10 @@ test("milestone acceptance: real mcp OS process pushes send_html into a real ope
     const callRes = await client.request("tools/call", {
       name: "send_html",
       arguments: {
+        slug: uniqueSlug,
         name: uniqueName,
-        html: docHTML,
+        html: pageHTML,
         description: "pushed by a real separate mcp OS process",
-        tags: "acceptance,two-process",
       },
     });
 
@@ -234,8 +236,8 @@ test("milestone acceptance: real mcp OS process pushes send_html into a real ope
     }
 
     // 3. The row appears live in the already-open page — no reload, no
-    // manual re-fetch — driven purely by the SSE broadcast that the
-    // subprocess's forwarded POST /api/documents triggered.
+    // manual re-fetch — driven purely by the page-created SSE broadcast
+    // that the subprocess's forwarded POST /api/pages triggered.
     await expect(rows).toHaveCount(initialCount + 1, { timeout: 10_000 });
     await expect(rows.nth(0)).toContainText(uniqueName);
 
@@ -249,7 +251,7 @@ test("milestone acceptance: real mcp OS process pushes send_html into a real ope
 
   // 4. The live-appended row behaves like any other row: activating it
   // opens its raw rendered HTML in a NEW BROWSER TAB via window.open to
-  // GET /api/documents/{id}/content (Branch B). There is no in-app
+  // GET /api/pages/{slug}/content (Branch B). There is no in-app
   // detail view, iframe, or Back button anymore (all removed, not hidden).
   //
   // Regression guard (Branch B): the removed surfaces must be absent from
@@ -260,11 +262,11 @@ test("milestone acceptance: real mcp OS process pushes send_html into a real ope
   await expect(page.locator("#back-button")).toHaveCount(0);
 
   const popup = await openRowInNewTab(page, rows.nth(0));
-  // The popup navigated to the content endpoint for this document.
-  await expect(popup).toHaveURL(/\/api\/documents\/\d+\/content$/);
+  // The popup navigated to the content endpoint for this page.
+  await expect(popup).toHaveURL(/\/api\/pages\/[a-z0-9-]+\/content$/);
 
   // Branch B: the table view is never hidden — it stays visible while the
-  // document opens in a separate tab (no in-app view-switching).
+  // page opens in a separate tab (no in-app view-switching).
   await expect(page.locator("#table-view")).toBeVisible();
 
   await expect(popup.locator("#static-marker")).toHaveText("static");
@@ -281,7 +283,7 @@ test("milestone acceptance: real mcp OS process pushes send_html into a real ope
   await popup.close();
   await expect(page.locator("#table-view")).toBeVisible();
   await expect(rows).toHaveCount(initialCount + 1);
-  await expect(page.locator("#documents-table tbody tr", { hasText: uniqueName })).toBeVisible();
+  await expect(page.locator("#pages-table tbody tr", { hasText: uniqueName })).toBeVisible();
 
   await page.locator("#search").fill(uniqueName);
   await expect(rows).toHaveCount(1);

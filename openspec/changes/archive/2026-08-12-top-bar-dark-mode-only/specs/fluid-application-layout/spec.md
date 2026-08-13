@@ -1,10 +1,4 @@
-# fluid-application-layout Specification
-
-## Purpose
-
-Provide a document-management interface that uses the browser's available horizontal workspace while retaining consistent page gutters and usable narrow-screen behavior.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Available-width application shell
 The application SHALL allow its primary content shell to use the available viewport width, subject only to the shell's page gutters. The shell SHALL NOT impose a fixed maximum content width that leaves unused horizontal space on wider viewports.

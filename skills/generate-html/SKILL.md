@@ -83,27 +83,29 @@ html = re.sub(r"\{\{(\w+)\}\}", lambda m: values[m.group(1)], template)
 remaining = re.findall(r"\{\{\w+\}\}", html)
 assert not remaining, f"unfilled placeholder(s): {remaining}"
 
+slug = "capacity-ceiling-2026-07-10"
 result = tool.mcp__hyperreader_send_html({
-    "name": "capacity-ceiling-2026-07-10",
+    "slug": slug,
+    "name": values["TITLE"],
     "html": html,
-    "description": values["LEDE"],
-    "tags": "troubleshooting,kafka"
+    "description": values["LEDE"]
 })
-# Hand over the report's own permalink, not the list view
-m = re.search(r'id=(\d+).*?port (\d+)', result["text"])
-display(f"http://localhost:{m.group(2)}/api/documents/{m.group(1)}/content" if m else result["text"])
+# The permalink is deterministic once the slug is chosen; only the port
+# varies, so pull that out of the result text rather than guessing it.
+m = re.search(r"View it at (\S+)", result["text"])
+display(m.group(1) if m else result["text"])
 ```
 
 `{{DATE}}` appears at both the masthead and the footer and resolves from the single `values["DATE"]` entry: one date, filled once, in a mapping, means both positions agree by construction rather than by discipline. There is nothing left to get wrong here; the old failure mode was a `.replace()` on the DATE token's whole enclosing sentence, done twice, which this mapping has no equivalent step for.
 
 `send_html` arguments:
 
-- `name` (required): the report title, kebab-case.
+- `slug` (required): the page's identifier, matching `^[a-z0-9]+(-[a-z0-9]+)*$` (lowercase letters, digits, single dashes between words), max 80 characters. Sending the same slug again patches that exact page in place instead of creating a new one (see "Updating a report" below).
+- `name` (required): the report title.
 - `html` (required): the composed string from the `eval` scope.
-- `description`: the lede sentence from the masthead. This is what appears under the title in HyperReader's list view, so it should summarize the outcome in one line.
-- `tags`: the eyebrow (report kind) from the masthead, lowercased. Add more tags if useful, comma-separated.
+- `description`: the lede sentence from the masthead, max 200 characters (rejected, not truncated, if it runs over). This is what appears under the title in HyperReader's list view, so it should summarize the outcome in one line.
 
-`send_html` returns text of the form `Document "<name>" ingested (id=<id>) via serve on port <port>. View it at http://localhost:<port>/`. That trailing URL is the list view, not the report, so the cell above rebuilds the permalink from the `id` and port it carries. Hand over `http://localhost:<port>/api/documents/<id>/content`: it opens the report full-page, and it is the same URL HyperReader opens when a reader clicks a row. If the parse fails, hand over the returned text verbatim rather than a guessed URL. The report appears live in HyperReader's list via SSE the moment it is ingested.
+`send_html` returns text of the form `Page "<name>" (slug=<slug>) created via serve on port <port>. View it at http://localhost:<port>/api/pages/<slug>/content` (or `updated` in place of `created` when the slug already existed). That trailing URL is already the report's own permalink, not the list view, so the cell above just extracts it rather than reconstructing it. If the parse fails, hand over the returned text verbatim rather than a guessed URL. The report appears live in HyperReader's list via SSE the moment it is sent.
 
 If `send_html` fails (serve not running, connection refused), state the error. Optionally write the string to a file as a fallback so the user can open it directly.
 
@@ -200,4 +202,4 @@ Render the composed report and look at it: no metric here substitutes for readin
 
 ## Updating a report
 
-Re-run the workflow and send again. The shell is stable, so only `{{CONTENT}}`, `{{CONTENTS}}` and `{{EXTERNAL}}` change. HyperReader stores each send as a new document; re-sending an updated report creates a new entry, not an update to an old one.
+Re-run the workflow and send again with the **same slug**. HyperReader patches the existing page in place (a full-body replacement, `200` not `201`) rather than creating a duplicate entry, and the patched row moves to the top of the list live via SSE. Only `{{CONTENT}}`, `{{CONTENTS}}` and `{{EXTERNAL}}` typically change between sends; the shell is stable. Reach for a new slug only when the report is genuinely a different page, not a new version of the same one. Reusing an old slug for an unrelated report overwrites it irrecoverably.
