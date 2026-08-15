@@ -1,12 +1,9 @@
 /* HyperReader single-page UI: styles.
  *
- * T01 shipped the bare shell. T02 adds the search toolbar + table rendering
- * styling. S04-T02 adds the #live-status SSE connection indicator.
- * M002-S02 removed the in-app detail view / iframe / Back button; activating
- * a page row now opens /api/pages/{slug}/content in a new browser tab. The
- * header and search toolbar were later merged into a single top bar
- * (title, search, and live-status together), and the app dropped its light
- * palette to render exclusively in dark theme.
+ * The top bar contains the home link, search, and live status. Table mode
+ * keeps normal document flow and gutters. Page mode locks the shell to the
+ * viewport and gives the trusted iframe the only scroll container below the
+ * fixed top bar.
  *
  * Design tokens: :root defines (1) semantic color roles (--bg, --fg,
  * --surface, --accent, --status-*, --error-*) and (2) theme-independent
@@ -24,12 +21,8 @@
   --muted: #9a9fa8;
   --accent: #5aa3f0;
   --accent-ring: rgba(90, 163, 240, 0.3);
-  --status-connecting-fg: #e0b84d;
-  --status-connecting-bg: #3a3320;
-  --status-live-fg: #5fd489;
-  --status-live-bg: #16321f;
-  --status-reconnecting-fg: #f2879a;
-  --status-reconnecting-bg: #3a1a20;
+  --status-live: #5fd489;
+  --status-offline: #f2879a;
   --error-fg: #f2879a;
   --error-bg: #3a1a20;
   --error-border: #5c2732;
@@ -46,6 +39,33 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+html[data-view="page"],
+html[data-view="page"] body {
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+html[data-theme="light"] {
+  --bg: #f5f7fa;
+  --fg: #1c2430;
+  --surface: #ffffff;
+  --surface-alt: #edf1f5;
+  --surface-hover: #e3ebf5;
+  --border: #b9c3d0;
+  --border-subtle: #d6dde6;
+  --muted: #5f6b7a;
+  --accent: #1769c2;
+  --accent-ring: rgba(23, 105, 194, 0.25);
+  --status-live: #16803c;
+  --status-offline: #bd2738;
+  --error-fg: #9d1c2c;
+  --error-bg: #fcebed;
+  --error-border: #e4a2aa;
+  --shadow-sm: 0 1px 2px rgba(20, 32, 48, 0.12);
+  --shadow-md: 0 4px 16px rgba(20, 32, 48, 0.16);
 }
 
 * {
@@ -68,12 +88,30 @@ body {
   padding: var(--space-6) var(--space-5);
 }
 
-/* Header hosts the title, search field, and live-status indicator together. */
+html[data-view="page"] #app {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: 100%;
+  height: 100dvh;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Header hosts the title, one context field, status, and theme controls. */
 header {
   display: flex;
   align-items: center;
+  min-width: 0;
   gap: var(--space-3);
   margin-bottom: var(--space-5);
+}
+
+html[data-view="page"] header {
+  min-width: 0;
+  margin-bottom: 0;
+  padding: var(--space-6) var(--space-5) var(--space-5);
 }
 
 header h1 {
@@ -85,10 +123,35 @@ header h1 {
   flex: 0 0 auto;
 }
 
-#search {
-  flex: 1 1 auto;
+#home-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+#home-link:hover {
+  color: var(--accent);
+}
+
+#home-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: var(--space-1);
+  border-radius: 2px;
+}
+
+#top-bar-context {
+  flex: 1 1 18rem;
   min-width: 0;
+  max-width: 24rem;
+  margin-left: auto;
+}
+
+#search,
+#selected-slug {
   width: 100%;
+}
+
+#search {
+  min-width: 0;
   padding: var(--space-2) var(--space-3);
   font: inherit;
   color: inherit;
@@ -98,43 +161,56 @@ header h1 {
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
 
+#selected-slug {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 #search::placeholder {
   color: var(--muted);
 }
 
-/* S04: SSE connection status. Color + label change with data-state so the
- * indicator is legible without relying on color alone (also has text). */
+/* The visual indicator is a single icon; app.js supplies its accessible name. */
 #live-status {
-  flex: 0 0 auto;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  padding: var(--space-1) var(--space-3);
-  border-radius: 999px;
-  white-space: nowrap;
-  transition: color 0.2s ease, background-color 0.2s ease;
-}
-
-#live-status::before {
-  content: "\25CF";
-  margin-right: 0.4em;
-  font-size: 0.7em;
-  vertical-align: 0.05em;
-}
-
-#live-status[data-state="connecting"] {
-  color: var(--status-connecting-fg);
-  background: var(--status-connecting-bg);
+  flex: 0 0 0.75rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--status-offline);
+  transition: background-color 0.2s ease;
 }
 
 #live-status[data-state="live"] {
-  color: var(--status-live-fg);
-  background: var(--status-live-bg);
+  background: var(--status-live);
 }
 
-#live-status[data-state="reconnecting"] {
-  color: var(--status-reconnecting-fg);
-  background: var(--status-reconnecting-bg);
+#theme-toggle {
+  flex: 0 0 2rem;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  margin-left: var(--space-2);
+  color: var(--fg);
+  font: inherit;
+  line-height: 1;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+#theme-toggle:hover {
+  background: var(--surface-hover);
+}
+
+#theme-toggle:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 #search:focus {
@@ -173,6 +249,23 @@ header h1 {
   border-radius: var(--radius-sm);
   padding: var(--space-3) var(--space-4);
   box-shadow: var(--shadow-sm);
+}
+
+#page-view {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#page-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
 }
 
 #pages-table {
@@ -219,4 +312,18 @@ header h1 {
 #pages-table tbody tr:focus {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+@media (max-width: 30rem) {
+  #app {
+    padding: var(--space-4);
+  }
+
+  html[data-view="page"] header {
+    padding: var(--space-4);
+  }
+
+  header {
+    gap: var(--space-2);
+  }
 }

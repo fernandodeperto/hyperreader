@@ -1,10 +1,4 @@
-# single-dark-theme Specification
-
-## Purpose
-
-Defines HyperReader's theme behavior: the reader renders in a dark color scheme by default and provides a light color scheme, with a single icon control in the top bar for switching between the two, and no operating-system-preference-driven switching.
-
-## Requirements
+## ADDED Requirements
 
 ### Requirement: Reader supports light and dark themes
 The application SHALL provide light and dark color schemes. The application SHALL provide one icon control that switches between the two color schemes.
@@ -29,3 +23,15 @@ The application SHALL show the theme control in the top bar immediately after th
 #### Scenario: User opens a stored page
 - **WHEN** a user opens a page from the document table
 - **THEN** the top bar keeps the theme control immediately after the live-connection indicator
+
+## REMOVED Requirements
+
+### Requirement: Reader always renders in dark theme
+**Reason**: The requested theme control requires both light and dark color schemes.
+
+**Migration**: Use the theme control in the top bar to select the required color scheme.
+
+### Requirement: No theme control is presented
+**Reason**: The top bar now includes the light and dark theme control.
+
+**Migration**: Use the new icon control immediately after the live-connection indicator.

@@ -7,18 +7,14 @@
 // full list immediately. Fetch errors surface in the in-UI error region
 // (R002).
 //
-// Activating a row opens the page's raw rendered HTML in a new browser tab
-// via window.open to GET /api/pages/{slug}/content, with zero app chrome.
-// There is no in-app detail view, iframe, or Back button; the browser
-// navigates the existing content endpoint directly, so the rendered page is
-// full-page and unsandboxed (R006) by the browser itself, not by an
-// app-owned iframe.
+// Activating a row selects the in-app page view and navigates its trusted,
+// unsandboxed iframe to GET /api/pages/{slug}/content. The stored document
+// owns scrolling below the fixed top bar. The table, search state, and SSE
+// connection stay active behind the page view.
 //
-// All user-authored strings (name/description) are inserted via
-// textContent, never innerHTML, so agent-authored markup is rendered as
-// inert text in the table. Page HTML renders live and unsandboxed (R006) in
-// its own top-level browser tab opened via window.open — there is no in-app
-// rendering surface for it.
+// All user-authored strings (name/description) are inserted via textContent,
+// never innerHTML, so agent-authored markup remains inert in the table.
+// Stored page HTML runs as trusted code in the same-origin iframe.
 //
 // A native EventSource subscribes to GET /api/events and reconciles the
 // table live by slug: a "page-created" event adds a new top row (if that
@@ -68,6 +64,8 @@
   var state = {
     search: "",
     pages: [],
+    view: "table",
+    selectedSlug: "",
     pending: null, // in-flight AbortController
     debounce: null // debounce timeout id
   };
@@ -98,7 +96,7 @@
       .then(function (pages) {
         state.pages = Array.isArray(pages) ? pages : [];
         setLoading(false);
-        render();
+        renderTable();
         window.hyperReader.clearError();
       })
       .catch(function (err) {
@@ -109,7 +107,7 @@
         }
         state.pages = [];
         setLoading(false);
-        render();
+        renderTable();
         window.hyperReader.showError(
           "Failed to load pages: " + (err && err.message ? err.message : err)
         );
@@ -128,12 +126,10 @@
     }
   }
 
-  // Render the current pages into the table. An empty list shows the empty
-  // state (worded by whether a search is active); a non-empty list shows
-  // the table. All strings are inserted via textContent so agent-authored
-  // markup is inert here. Rows carry data-slug for the row-activation
-  // handler.
-  function render() {
+  // Render the current pages into the table without changing the selected
+  // top-level view. Search responses and live events can update this hidden
+  // table while a stored page remains open.
+  function renderTable() {
     var table = byId("pages-table");
     var empty = byId("empty-state");
     var tbody = table ? table.querySelector("tbody") : null;
@@ -181,24 +177,23 @@
     return td;
   }
 
-  // --- Live updates via SSE ---
-  //
   // setLiveStatus mirrors the EventSource connection lifecycle into
-  // #live-status via its data-state attribute (and matching visible text),
-  // so a dropped connection is visible in the top bar instead of the table
-  // silently going stale.
+  // #live-status. CSS renders the state as an icon; the accessible name
+  // keeps the status available without relying on color.
   function setLiveStatus(newState) {
     var el = byId("live-status");
     if (!el) {
       return;
     }
     el.dataset.state = newState;
-    el.textContent =
+    el.setAttribute(
+      "aria-label",
       newState === "live"
         ? "Live"
         : newState === "reconnecting"
-        ? "Reconnecting\u2026"
-        : "Connecting\u2026";
+        ? "Reconnecting"
+        : "Connecting"
+    );
   }
 
   // isValidPagePayload guards against a malformed "page-created"/
@@ -266,7 +261,7 @@
     }
 
     state.pages.unshift(page);
-    render();
+    renderTable();
   }
 
   // onPageUpdated handles a broadcast "page-updated" SSE frame: decode its
@@ -289,7 +284,7 @@
       return p.slug !== page.slug;
     });
     state.pages.unshift(page);
-    render();
+    renderTable();
   }
 
   // connectEvents opens the GET /api/events stream. The browser's native
@@ -340,24 +335,80 @@
     }, SEARCH_DEBOUNCE_MS);
   }
 
-  // --- Open page in a new tab ---
-  //
-  // openPage opens the page's raw rendered HTML in a new top-level browser
-  // tab via the existing GET /api/pages/{slug}/content endpoint, with zero
-  // app chrome. The browser navigates the endpoint directly, so the
-  // rendered page is full-page and unsandboxed (R006) by the browser
-  // itself — no in-app iframe, fetch, or srcdoc is involved. The table view
-  // is never hidden or torn down; the user returns to it by closing the
-  // new tab. window.open is called with "_blank" as the target and no
-  // window features, which the browser treats as a normal new tab.
+  // Select page view and navigate the trusted iframe to the raw stored
+  // document. Direct iframe navigation preserves document-level styles,
+  // scripts, relative URLs, and viewport units.
   function openPage(slug) {
-    window.open(API + "/" + encodeURIComponent(slug) + "/content", "_blank");
+    var frame = byId("page-frame");
+    if (!frame) {
+      return;
+    }
+    state.selectedSlug = slug;
+    state.view = "page";
+    frame.src = API + "/" + encodeURIComponent(slug) + "/content";
+    renderView();
   }
 
-  // onTableActivate handles clicks on page rows (event delegation on the
-  // tbody so a single listener covers all rows, current and future). A
-  // click on a row (or Enter/Space on a keyboard-focused row) opens the
-  // page in a new browser tab via openPage.
+  // Older or externally-authored stored documents can carry their own
+  // floating theme control (the generate-html report template's
+  // `.theme` button). HyperReader's top bar now owns that affordance for
+  // anything shown in the trusted iframe, so strip the embedded one on
+  // every load — including "about:blank" (a harmless no-op) and pages
+  // that never had one. The iframe is always same-origin (served from
+  // this API), so contentDocument access never throws in practice; the
+  // try/catch only guards a future same-origin assumption changing.
+  function removeEmbeddedThemeControls() {
+    var frame = byId("page-frame");
+    if (!frame) {
+      return;
+    }
+    try {
+      var doc = frame.contentDocument;
+      if (!doc) {
+        return;
+      }
+      var buttons = doc.querySelectorAll(".theme");
+      for (var i = 0; i < buttons.length; i++) {
+        buttons[i].remove();
+      }
+    } catch (e) {
+      // Cross-origin content would throw on contentDocument access;
+      // nothing to clean up in that case.
+    }
+  }
+
+  // The trusted iframe is a separate document: custom properties on the
+  // shell's <html> do not cross that boundary, so switching the shell's
+  // theme alone leaves stored content on its own palette. A
+  // generate-html report reads/writes the same data-theme attribute and
+  // listens for "themechange" (to re-render mermaid/chart colors), so
+  // mirroring both here keeps a report's palette in step with the
+  // shell. Arbitrary stored HTML with no such attribute or listener is
+  // unaffected — this only sets an attribute nothing there queries.
+  function syncEmbeddedTheme() {
+    var frame = byId("page-frame");
+    if (!frame) {
+      return;
+    }
+    try {
+      var doc = frame.contentDocument;
+      if (!doc || !doc.documentElement) {
+        return;
+      }
+      doc.documentElement.dataset.theme = document.documentElement.dataset.theme;
+      doc.dispatchEvent(new Event("themechange"));
+    } catch (e) {
+      // Cross-origin content would throw on contentDocument access;
+      // nothing to sync in that case.
+    }
+  }
+
+  function onPageFrameLoad() {
+    removeEmbeddedThemeControls();
+    syncEmbeddedTheme();
+  }
+
+  // Handle clicks on page rows through event delegation on the stable tbody.
   function onTableActivate(evt) {
     var target = evt.target;
     // Walk up to the TR — clicks may land on a TD.
@@ -377,10 +428,8 @@
     openPage(slug);
   }
 
-  // onTableKeydown lets a keyboard user open the page in a new tab with
-  // Enter/Space on a focused row (the rows are role=button + tabIndex=0).
-  // Space scrolling the page is suppressed via preventDefault so
-  // activation is the only Space behavior on a row.
+  // Let keyboard users open a page with Enter or Space on a focused row.
+  // Prevent Space from scrolling the table document.
   function onTableKeydown(evt) {
     if (evt.key !== "Enter" && evt.key !== " ") {
       return;
@@ -393,32 +442,97 @@
     openPage(target.dataset.slug);
   }
 
+  function renderView() {
+    var tableView = byId("table-view");
+    var pageView = byId("page-view");
+    var search = byId("search");
+    var selectedSlug = byId("selected-slug");
+    if (!tableView || !pageView || !search || !selectedSlug) {
+      return;
+    }
+
+    var showingPage = state.view === "page";
+    document.documentElement.dataset.view = state.view;
+    tableView.hidden = showingPage;
+    pageView.hidden = !showingPage;
+    search.hidden = showingPage;
+    selectedSlug.hidden = !showingPage;
+    selectedSlug.textContent = showingPage ? state.selectedSlug : "";
+    selectedSlug.setAttribute("aria-label", showingPage ? state.selectedSlug : "");
+    selectedSlug.title = showingPage ? state.selectedSlug : "";
+  }
+
+  function onHomeActivate(evt) {
+    if (
+      evt.defaultPrevented ||
+      evt.button !== 0 ||
+      evt.metaKey ||
+      evt.ctrlKey ||
+      evt.shiftKey ||
+      evt.altKey
+    ) {
+      return;
+    }
+
+    evt.preventDefault();
+    state.view = "table";
+    state.selectedSlug = "";
+    var frame = byId("page-frame");
+    if (frame) {
+      frame.src = "about:blank";
+    }
+    renderView();
+  }
+
+  function toggleTheme() {
+    var root = document.documentElement;
+    root.dataset.theme = root.dataset.theme === "light" ? "dark" : "light";
+    syncThemeToggle();
+    syncEmbeddedTheme();
+  }
+
+  function syncThemeToggle() {
+    var toggle = byId("theme-toggle");
+    if (!toggle) {
+      return;
+    }
+    var switchToLight = document.documentElement.dataset.theme !== "light";
+    var label = switchToLight ? "Switch to light theme" : "Switch to dark theme";
+    toggle.textContent = switchToLight ? "\u2600" : "\u263E";
+    toggle.setAttribute("aria-label", label);
+    toggle.title = label;
+  }
+
   function init() {
     var search = byId("search");
     if (search) {
       search.addEventListener("input", onSearchInput);
     }
 
-    // Row-activation wiring: a click (or Enter/Space on a focused row)
-    // opens the page in a new browser tab. Uses event delegation on the
-    // stable tbody so a single listener covers all rows, current and
-    // future.
+    var home = byId("home-link");
+    if (home) {
+      home.addEventListener("click", onHomeActivate);
+    }
+
+    var themeToggle = byId("theme-toggle");
+    if (themeToggle) {
+      themeToggle.addEventListener("click", toggleTheme);
+    }
+
+    // A single delegated listener covers current and future table rows.
     var tbody = document.querySelector("#pages-table tbody");
     if (tbody) {
       tbody.addEventListener("click", onTableActivate);
       tbody.addEventListener("keydown", onTableKeydown);
     }
 
-    // Single dark theme, no toggle: write hyperreader-theme once so
-    // generate-html reports opened from this reader stay in sync with the
-    // app's single theme instead of falling back to OS preference inside
-    // the report. Wrapped in try/catch (private/sandboxed contexts can
-    // throw) so a blocked store never blocks page load.
-    try {
-      window.localStorage.setItem("hyperreader-theme", "dark");
-    } catch (e) {
-      // Ignore: the app itself is always dark regardless of this key.
+    var pageFrame = byId("page-frame");
+    if (pageFrame) {
+      pageFrame.addEventListener("load", onPageFrameLoad);
     }
+
+    syncThemeToggle();
+    renderView();
 
     fetchPages("");
 
