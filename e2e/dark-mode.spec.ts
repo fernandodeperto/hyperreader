@@ -1,4 +1,6 @@
 // Playwright coverage for the explicit light and dark theme control.
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { test, expect } from "@playwright/test";
 
 test("starts dark with a control that switches to light", async ({ page }) => {
@@ -71,4 +73,40 @@ test("propagates theme changes into a stored document's iframe", async ({ page }
   await toggle.click();
   await expect(frameHtml).toHaveAttribute("data-theme", "dark");
   await expect(frameBody).toHaveCSS("background-color", "rgb(16, 16, 16)");
+});
+
+test("a report composed from the real template renders dark in the dark shell", async ({ page }) => {
+  const slug = `template-dark-${Date.now()}`;
+  const templatePath = path.join(__dirname, "..", "skills", "generate-html", "assets", "template.html");
+  const values: Record<string, string> = {
+    KIND: "TEST", TITLE: "Template dark fixture", LEDE: "proves the template honors the shell theme",
+    DATE: "2026-08-31", SCOPE: "test", SOURCES: "test",
+    CONTENTS: '<li><a class="hover:text-action-hover" href="#s">Section</a></li>',
+    CONTENT: '<section id="s" class="mb-12"><h2 class="text-2xl font-bold text-gray-900 mb-4">1. Section</h2>'
+           + '<div class="border border-gray-200 rounded-lg p-5 bg-white" id="card"><p class="text-gray-700">body</p></div></section>',
+    CAVEATS: "none", EXTERNAL: "",
+  };
+  const html = readFileSync(templatePath, "utf8").replace(/\{\{(\w+)\}\}/g, (_, k) => values[k]);
+
+  const seed = await page.request.post("/api/pages", { data: { slug, name: values.TITLE, description: values.LEDE, html } });
+  expect(seed.ok()).toBeTruthy();
+
+  await page.goto("/");
+  await expect(page.locator("#loading-state")).toBeHidden();
+  await page.locator("#search").fill(slug);
+  await page.locator(`#pages-table tbody tr[data-slug="${slug}"]`).click();
+
+  const frame = page.frameLocator("#page-frame");
+  await expect(frame.locator("#card")).toBeVisible();
+  const frameHtml = frame.locator("html");
+  await expect(frameHtml).toHaveAttribute("data-theme", "dark");
+  // Dark palette comes from the template's own inline <style>, so this holds
+  // even if the Tailwind CDN is unreachable in CI.
+  await expect(frame.locator("body")).toHaveCSS("background-color", "rgb(22, 24, 29)");
+  await expect(frame.locator("#card")).toHaveCSS("background-color", "rgb(31, 34, 41)");
+
+  // Toggling the shell flips the report instantly (pure CSS, no reload).
+  await page.locator("#theme-toggle").click();
+  await expect(frameHtml).toHaveAttribute("data-theme", "light");
+  await expect(frame.locator("body")).not.toHaveCSS("background-color", "rgb(22, 24, 29)");
 });

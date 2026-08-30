@@ -3,6 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    // Set the report's theme before first paint. Inside HyperReader the
+    // same-origin shell owns the theme, so mirror its data-theme; opened
+    // standalone (no shell parent) fall back to the OS preference. The
+    // shell also re-asserts data-theme on the iframe load event, so this
+    // only removes the first-paint flash — it does not fight the shell.
+    (function () {
+      var t;
+      try {
+        if (window.parent !== window && window.parent.document) {
+          t = window.parent.document.documentElement.getAttribute('data-theme');
+        }
+      } catch (e) { /* cross-origin parent: fall through to OS preference */ }
+      if (!t) {
+        t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <title>{{TITLE}}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -26,6 +45,77 @@
     .reveal.visible { opacity: 1; transform: none; }
   </style>
   {{EXTERNAL}}
+  <style>
+    /* Dark theme. Remaps the design-system palette (SKILL.md section 5:
+       gray neutrals + status on built-in red/amber/green/violet scales +
+       action) to a dark surface. Attribute+class selectors outrank
+       Tailwind utilities, so these apply without rewriting body classes. */
+    html[data-theme="dark"] body { background-color: #16181d; color: #c9ccd1; }
+    /* Neutral surfaces */
+    html[data-theme="dark"] .bg-white { background-color: #1f2229; }
+    html[data-theme="dark"] .bg-gray-50 { background-color: #16181d; }
+    html[data-theme="dark"] .bg-gray-100 { background-color: #262a33; }
+    /* Neutral text */
+    html[data-theme="dark"] .text-gray-900 { color: #e8e8e8; }
+    html[data-theme="dark"] .text-gray-700 { color: #c9ccd1; }
+    html[data-theme="dark"] .text-gray-600 { color: #b6bcc5; }
+    html[data-theme="dark"] .text-gray-500 { color: #9a9fa8; }
+    /* Neutral borders */
+    html[data-theme="dark"] .border-gray-200 { border-color: #3a3f4a; }
+    html[data-theme="dark"] .border-gray-300 { border-color: #3a3f4a; }
+    /* Action / links */
+    html[data-theme="dark"] .text-action { color: #5aa3f0; }
+    html[data-theme="dark"] .hover\:text-action-hover:hover { color: #7ab8f5; }
+    /* Status: red (failure / risk) */
+    html[data-theme="dark"] .bg-red-50 { background-color: #3a1a20; }
+    html[data-theme="dark"] .bg-red-100 { background-color: #45202a; }
+    html[data-theme="dark"] .text-red-800 { color: #f2879a; }
+    html[data-theme="dark"] .text-red-600 { color: #f2879a; }
+    html[data-theme="dark"] .border-red-600 { border-color: #f2879a; }
+    html[data-theme="dark"] .border-t-red-600 { border-top-color: #f2879a; }
+    html[data-theme="dark"] .border-red-200 { border-color: #5c2732; }
+    /* Status: amber (caution) */
+    html[data-theme="dark"] .bg-amber-50 { background-color: #3a2e12; }
+    html[data-theme="dark"] .bg-amber-100 { background-color: #453917; }
+    html[data-theme="dark"] .text-amber-700 { color: #f0c14b; }
+    html[data-theme="dark"] .text-amber-800 { color: #f0c14b; }
+    html[data-theme="dark"] .border-amber-200 { border-color: #5c4a1f; }
+    /* Status: green (confirmed / healthy) */
+    html[data-theme="dark"] .bg-green-50 { background-color: #12261a; }
+    html[data-theme="dark"] .bg-green-100 { background-color: #12261a; }
+    html[data-theme="dark"] .text-green-800 { color: #5fd489; }
+    html[data-theme="dark"] .text-constructive { color: #5fd489; }
+    /* Status: violet (inference) */
+    html[data-theme="dark"] .bg-violet-100 { background-color: #241a3a; }
+    html[data-theme="dark"] .text-violet-800 { color: #c4a7f0; }
+    /* Charts: frappe draws axis/label text as SVG <text>; a CSS fill
+       overrides its presentation attributes, so labels stay legible on
+       the dark surface with no chart re-render. The plotted series color
+       (#006CE4) already reads on both themes. */
+    html[data-theme="dark"] .chart text { fill: #9a9fa8; }
+    /* highlight.js (github light theme, loaded via {{EXTERNAL}}) -> dark
+       token map. Strings avoid green because green means "confirmed" in
+       this palette. Overrides win on specificity regardless of load order. */
+    html[data-theme="dark"] .hljs { color: #c9ccd1; background: transparent; }
+    html[data-theme="dark"] .hljs-comment,
+    html[data-theme="dark"] .hljs-quote { color: #8b949e; }
+    html[data-theme="dark"] .hljs-keyword,
+    html[data-theme="dark"] .hljs-selector-tag,
+    html[data-theme="dark"] .hljs-literal,
+    html[data-theme="dark"] .hljs-type { color: #ff7b72; }
+    html[data-theme="dark"] .hljs-string,
+    html[data-theme="dark"] .hljs-meta .hljs-string { color: #a5d6ff; }
+    html[data-theme="dark"] .hljs-number,
+    html[data-theme="dark"] .hljs-symbol { color: #79c0ff; }
+    html[data-theme="dark"] .hljs-title,
+    html[data-theme="dark"] .hljs-section { color: #d2a8ff; }
+    html[data-theme="dark"] .hljs-attr,
+    html[data-theme="dark"] .hljs-attribute,
+    html[data-theme="dark"] .hljs-variable,
+    html[data-theme="dark"] .hljs-name,
+    html[data-theme="dark"] .hljs-tag,
+    html[data-theme="dark"] .hljs-built_in { color: #ffa657; }
+  </style>
 </head>
 <body class="bg-gray-50 text-gray-700 font-sans antialiased min-h-screen">
   <main class="max-w-5xl mx-auto px-4 py-10">
@@ -71,10 +161,26 @@
     if (window.hljs) {
       document.querySelectorAll('pre code[class*="language-"]').forEach((b) => window.hljs.highlightElement(b));
     }
-    if (window.mermaid) {
-      window.mermaid.initialize({ startOnLoad: false, theme: 'neutral' });
+    // Mermaid bakes theme colors into its SVG at render time, so it must
+    // re-render when the reader toggles the theme. Cache each diagram's
+    // source once, then (re)render for the active theme now and on every
+    // themechange the HyperReader shell dispatches. Charts and highlight.js
+    // re-color via CSS, so they need no handler here.
+    function mermaidTheme() {
+      return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'neutral';
+    }
+    function renderMermaid() {
+      if (!window.mermaid) return;
+      document.querySelectorAll('.mermaid').forEach((el) => {
+        if (el.dataset.src == null) el.dataset.src = el.textContent;
+        el.textContent = el.dataset.src;
+        el.removeAttribute('data-processed');
+      });
+      window.mermaid.initialize({ startOnLoad: false, theme: mermaidTheme() });
       window.mermaid.run();
     }
+    renderMermaid();
+    document.addEventListener('themechange', renderMermaid);
     // Charts render from their own per-figure inline scripts in the body.
   </script>
 </body>
