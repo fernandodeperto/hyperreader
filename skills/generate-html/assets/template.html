@@ -1,461 +1,81 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{TITLE}}</title>
-{{EXTERNAL}}
-<style>
-/* ---------- tokens ---------- */
-:root {
-  color-scheme: light dark;
-  --bg:       light-dark(#ffffff, #0d1117);
-  --surface:  light-dark(#f6f8fa, #161b22);
-  --surface2: light-dark(#eef1f4, #1c2128);
-  --border:   light-dark(#d7dde3, #30363d);
-  --text:     light-dark(#1f2328, #e6edf3);
-  --dim:      light-dark(#5c6570, #8b949e);
-  --accent:   light-dark(#0969da, #58a6ff);
-  --red:      light-dark(#cf222e, #f85149);
-  --amber:    light-dark(#9a6700, #d29922);
-  --green:    light-dark(#1a7f37, #3fb950);
-  --violet:   light-dark(#8250df, #bc8cff);
-  --shadow-color: light-dark(rgb(0 0 0 / .08), rgb(0 0 0 / .5));
-
-  --sans: "IBM Plex Sans Variable", "Plex Sans Fallback", sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  --measure: 66ch;
-  --radius: 10px;
-  --gap: 1rem;
-}
-html[data-theme="light"] { color-scheme: light; }
-html[data-theme="dark"]  { color-scheme: dark; }
-
-/* Metric-matched fallback for --sans: measured against the Arial that
-   actually resolves (canvas fontBoundingBoxAscent/Descent and rendered
-   line width at reading size), not copied from a table. Keeps the
-   font-display: swap repaint from reflowing the page. */
-@font-face {
-  font-family: "Plex Sans Fallback";
-  src: local("Arial");
-  ascent-override: 102.5%;
-  descent-override: 27.5%;
-  size-adjust: 100.7%;
-}
-
-/* ---------- base ---------- */
-* { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--sans);
-  font-size: clamp(1rem, .97rem + .2vw, 1.1rem);
-  line-height: 1.6;
-  -webkit-text-size-adjust: 100%;
-  text-rendering: optimizeLegibility;
-}
-.wrap { width: min(100%, 74rem); margin-inline: auto; padding: clamp(1.5rem, 1rem + 2vw, 3rem) clamp(1rem, .5rem + 2vw, 2rem) 5rem; }
-
-h1, h2, h3, h4 { line-height: 1.25; text-wrap: balance; letter-spacing: -.015em; }
-h1 { font-size: clamp(1.95rem, 1.5rem + 1.9vw, 2.65rem); margin: 0 0 .5rem; }
-h2 { font-size: clamp(1.4rem, 1.25rem + .6vw, 1.65rem); margin: 3rem 0 1rem; padding-bottom: .45rem; border-bottom: 1px solid var(--border); }
-h3 { font-size: clamp(1.15rem, 1.05rem + .3vw, 1.3rem); margin: 2rem 0 .6rem; }
-h4 { font-size: .82rem; margin: 1.4rem 0 .4rem; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
-section[id] { scroll-margin-top: 1.5rem; }
-
-/* Section numbering: one counter, driven by document order, shared with
-   the contents list below. A number rendered twice cannot disagree with
-   itself. */
-main { counter-reset: section; }
-section { counter-increment: section; }
-section > h2:first-child::before { content: counter(section) "."; color: var(--dim); margin-right: .35em; font-variant-numeric: tabular-nums; }
-
-p, ul, ol, blockquote { max-width: var(--measure); }
-p { margin: 0 0 .9rem; }
-ul, ol { margin: 0 0 1rem; padding-left: 1.4rem; }
-li { margin-bottom: .35rem; }
-li > ul, li > ol { margin-top: .35rem; }
-strong { font-weight: 650; }
-a { color: var(--accent); text-underline-offset: 2px; }
-a:focus-visible, summary:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
-hr { border: 0; border-top: 1px solid var(--border); margin: 2.5rem 0; }
-blockquote { margin: 1rem 0; padding: .1rem 0 .1rem 1rem; border-left: 3px solid var(--border); color: var(--dim); }
-
-/* ---------- masthead ---------- */
-.masthead { padding-bottom: 1.5rem; padding-right: 3.5rem; border-bottom: 1px solid var(--border); }
-.eyebrow { color: var(--accent); font-size: .78rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin: 0 0 .6rem; }
-.lede { font-size: clamp(1.05rem, 1rem + .35vw, 1.25rem); color: var(--dim); line-height: 1.5; margin: 0 0 1rem; max-width: 60ch; text-wrap: pretty; }
-.meta { font-size: .85rem; color: var(--dim); margin: 0; display: flex; flex-wrap: wrap; gap: .4rem 0; max-width: none; }
-.meta > span::before { content: "·"; margin: 0 .5rem; color: var(--border); }
-.meta > span:first-child::before { content: none; margin: 0; }
-
-/* ---------- layout + contents ---------- */
-.layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem; margin-top: 2rem; }
-@media (min-width: 64rem) {
-  .layout { grid-template-columns: 14rem minmax(0, 1fr); gap: 3.5rem; }
-  .toc { position: sticky; top: 1.5rem; align-self: start; max-height: calc(100vh - 3rem); overflow-y: auto; order: -1; }
-  .toc summary { list-style: none; cursor: default; }
-  .toc summary::-webkit-details-marker { display: none; }
-}
-.toc { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .9rem 1.1rem; font-size: .875rem; }
-.toc summary { font-weight: 650; cursor: pointer; color: var(--dim); font-size: 1.05em; letter-spacing: .08em; text-transform: uppercase; }
-.toc ol { list-style: none; counter-reset: toc; margin: .7rem 0 0; padding: 0; }
-.toc li { counter-increment: toc; margin: 0; }
-.toc a { display: block; padding: .28rem 0 .28rem 1.6rem; text-indent: -1.6rem; color: var(--text); text-decoration: none; border-left: 2px solid transparent; }
-.toc a::before { content: counter(toc) "."; color: var(--dim); display: inline-block; width: 1.6rem; text-indent: 0; font-variant-numeric: tabular-nums; }
-.toc a:hover { color: var(--accent); }
-.toc a.active { color: var(--accent); font-weight: 600; }
-
-/* ---------- banner (verdict / headline finding) ---------- */
-.banner {
-  background: color-mix(in oklab, var(--accent) 9%, var(--surface));
-  border: 1px solid color-mix(in oklab, var(--accent) 30%, var(--border));
-  border-left: 4px solid var(--accent);
-  border-radius: var(--radius); padding: 1.1rem 1.3rem; margin: 0 0 1.5rem;
-}
-.banner > :last-child { margin-bottom: 0; }
-.banner p:first-child { font-size: 1.05rem; }
-.banner.good   { --accent: var(--green); }
-.banner.warn   { --accent: var(--amber); }
-.banner.bad    { --accent: var(--red); }
-.banner.neutral{ --accent: var(--dim); }
-
-/* ---------- callouts ---------- */
-.callout {
-  background: color-mix(in oklab, var(--hue, var(--accent)) 7%, var(--surface));
-  border: 1px solid var(--border); border-left: 3px solid var(--hue, var(--accent));
-  border-radius: 8px; padding: .8rem 1rem; margin: 1.2rem 0;
-}
-.callout > :last-child { margin-bottom: 0; }
-.callout .t { display: block; font-weight: 650; color: var(--hue, var(--accent)); margin-bottom: .25rem; font-size: 1.1em; }
-.callout.tip    { --hue: var(--green); }
-.callout.warn   { --hue: var(--amber); }
-.callout.danger { --hue: var(--red); }
-.callout.note   { --hue: var(--violet); }
-
-/* ---------- cards + stats ---------- */
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: var(--gap); margin: 1.2rem 0; }
-.grid.wide { grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.1rem; box-shadow: 0 1px 3px var(--shadow-color); }
-.card > :last-child { margin-bottom: 0; }
-.card h3 { margin: 0 0 .5rem; }
-.card p, .card ul, .card ol { max-width: none; }
-.card .hd { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: .5rem; }
-.card .hd h3 { margin: 0; }
-
-.stat .v { font-size: clamp(1.5rem, 1.3rem + .8vw, 1.9rem); font-weight: 660; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1.15; }
-.stat .l { font-size: .8rem; color: var(--dim); margin-top: .25rem; line-height: 1.4; }
-.stat.good .v { color: var(--green); } .stat.warn .v { color: var(--amber); }
-.stat.bad .v  { color: var(--red); }   .stat.info .v { color: var(--accent); }
-
-/* ---------- badges + evidence tags ---------- */
-.badge {
-  display: inline-block; font-size: .7rem; font-weight: 700; letter-spacing: .05em;
-  padding: .12rem .45rem; border-radius: 5px; vertical-align: .1em; white-space: nowrap;
-  background: color-mix(in oklab, var(--hue, var(--dim)) 10%, transparent);
-  color: var(--hue, var(--dim));
-  border: 1px solid color-mix(in oklab, var(--hue, var(--dim)) 35%, transparent);
-}
-.badge.ok   { --hue: var(--green); } .badge.warn { --hue: var(--amber); }
-.badge.bad  { --hue: var(--red); }   .badge.info { --hue: var(--accent); }
-.badge.note { --hue: var(--violet); }
-
-/* ---------- tables ---------- */
-.scroll { overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: var(--radius); }
-.scroll table { margin: 0; border: 0; }
-table { border-collapse: collapse; width: 100%; font-size: .9rem; margin: 1.1rem 0; }
-th, td { text-align: left; vertical-align: top; padding: .5rem .75rem; border-bottom: 1px solid var(--border); }
-thead th { background: var(--surface2); font-weight: 650; font-size: 1.05em; white-space: nowrap; }
-tbody tr:last-child td { border-bottom: 0; }
-tbody tr:hover td { background: var(--surface); }
-.n { text-align: right; font-variant-numeric: tabular-nums; }
-
-/* ---------- code ---------- */
-code, kbd, samp { font-family: var(--mono); font-size: .87em; }
-:not(pre) > code {
-  background: var(--surface2); border: 1px solid var(--border); border-radius: 5px;
-  padding: .08em .35em; overflow-wrap: break-word;
-}
-pre {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: .85rem 1rem; overflow-x: auto; font-size: .9rem; line-height: 1.55; margin: 1rem 0; tab-size: 2;
-}
-pre code { background: none; border: 0; padding: 0; font-size: inherit; }
-pre .add { color: var(--green); } pre .del { color: var(--red); } pre .cm { color: var(--dim); }
-
-/* highlight.js token map onto the palette, not a stock theme: comments
-   dim, strings a hue that is neither green (confirmed) nor red (failure),
-   keywords by weight. Separate namespace from .add/.del/.cm above, which
-   stay for hand-authored diffs. Inert without the hljs script. */
-.hljs-comment, .hljs-quote { color: var(--dim); }
-.hljs-string, .hljs-doctag, .hljs-regexp, .hljs-template-tag { color: var(--violet); }
-.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-section, .hljs-link, .hljs-built_in { font-weight: 700; }
-.hljs-title, .hljs-name, .hljs-attr, .hljs-symbol, .hljs-bullet, .hljs-attribute { color: var(--accent); }
-.hljs-number, .hljs-meta, .hljs-variable { color: var(--amber); }
-.hljs-deletion { color: var(--red); }
-.hljs-addition { color: var(--green); }
-.hljs-emphasis { font-style: italic; }
-.hljs-strong { font-weight: 700; }
-
-/* ---------- steps / timeline ---------- */
-.steps { list-style: none; counter-reset: step; padding: 0; margin: 1.2rem 0; max-width: none; }
-.steps > li { counter-increment: step; position: relative; padding: 0 0 1.1rem 2.4rem; border-left: 2px solid var(--border); margin: 0 0 0 .8rem; }
-.steps > li:last-child { border-left-color: transparent; padding-bottom: 0; }
-.steps > li::before {
-  content: counter(step); position: absolute; left: -.85rem; top: -.15rem;
-  width: 1.65rem; height: 1.65rem; border-radius: 50%; display: grid; place-items: center;
-  background: var(--surface2); border: 1px solid var(--border); color: var(--dim);
-  font-size: .78rem; font-weight: 700; font-variant-numeric: tabular-nums;
-}
-.steps .st { display: block; font-weight: 650; font-size: 1.05em; margin-bottom: .2rem; }
-
-/* ---------- figures + meters ---------- */
-figure { margin: 1.4rem 0; }
-figure svg, figure img { width: 100%; height: auto; display: block; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
-figure .chart { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
-figure .chart svg { border: 0; border-radius: 0; }
-figure .chart p { color: var(--dim); font-size: .875rem; margin: 0; padding: .75rem; }
-figcaption { color: var(--dim); font-size: .875rem; margin-top: .5rem; max-width: var(--measure); }
-.meter { height: .5rem; border-radius: 99px; background: var(--surface2); overflow: hidden; margin: .4rem 0; }
-.meter > span { display: block; height: 100%; background: var(--hue, var(--accent)); border-radius: inherit; }
-
-/* Chart libraries inject their own stylesheet at render time with stock
-   colours (stock grey axis text, stock light gridlines, a permanently
-   dark tooltip); these lose to plain source order once re-rendered. Beat
-   them on specificity instead, so the fix survives every themechange
-   re-render regardless of injection order. Selectors verified against
-   Frappe Charts' actual rendered DOM, not guessed. */
-.chart .chart-container .axis,
-.chart .chart-container .chart-label,
-.chart .chart-container .legend-dataset-text { fill: var(--dim); }
-/* stroke needs !important: Frappe sets it as an inline style attribute
-   for its enter transition, which beats specificity alone. */
-.chart .chart-container .axis line,
-.chart .chart-container .chart-label line { stroke: var(--border) !important; }
-.chart .chart-container .graph-svg-tip {
-  background: var(--surface2); color: var(--text); border: 1px solid var(--border);
-}
-.chart .chart-container .graph-svg-tip strong { color: var(--text); }
-.chart .chart-container .graph-svg-tip .svg-pointer { border-top-color: var(--surface2); }
-
-/* mermaid: unprocessed source keeps normal <pre> chrome (this is the
-   offline fallback, and it should look like the other code blocks on
-   the page, not sit naked); a successful render strips it. useMaxWidth
-   is disabled in the initialize() call, so a wide diagram scrolls at
-   its own size instead of shrinking its text to illegibility. */
-pre.mermaid { overflow-x: auto; }
-pre.mermaid[data-processed] { background: none; border: 0; padding: 0; margin: 1.4rem 0; }
-
-/* ---------- disclosure ---------- */
-details.more { border: 1px solid var(--border); border-radius: var(--radius); padding: .7rem 1rem; margin: 1.2rem 0; background: var(--surface); }
-details.more > summary { cursor: pointer; font-weight: 650; font-size: 1.05em; }
-details.more[open] > summary { margin-bottom: .7rem; padding-bottom: .5rem; border-bottom: 1px solid var(--border); }
-
-/* ---------- theme toggle + footer ---------- */
-.theme {
-  position: fixed; top: .8rem; right: .8rem; z-index: 10;
-  width: 2.75rem; height: 2.75rem; border-radius: 50%; cursor: pointer;
-  background: var(--surface); border: 1px solid var(--border); color: var(--dim);
-  font-size: 1.1rem; line-height: 1; display: grid; place-items: center; box-shadow: 0 1px 3px var(--shadow-color);
-}
-.theme:hover { color: var(--text); }
-footer { margin-top: 4rem; padding-top: 1.2rem; border-top: 1px solid var(--border); color: var(--dim); font-size: .82rem; }
-.skip { position: absolute; left: -9999px; top: .8rem; z-index: 20; background: var(--bg); color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: .4rem .7rem; font-size: .85rem; font-weight: 600; text-decoration: none; }
-.skip:focus { left: .8rem; }
-
-/* ---------- print ---------- */
-@media print {
-  :root { color-scheme: light; }
-  .theme, .toc { display: none; }
-  .wrap { width: auto; padding: 0; }
-  .layout { display: block; }
-  body { font-size: 10.5pt; }
-  h2 { break-after: avoid; }
-  .card, .callout, .banner, figure, table, .steps > li, section { break-inside: avoid; }
-  .masthead { padding-right: 0; }
-  .banner, .callout, .badge, .stat, thead th, pre { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  a { color: inherit; text-decoration: none; }
-}
-</style>
-<script>
-// Runs before first paint: a stored preference must not arrive after the
-// page has already painted the wrong theme. Reads the reader's own
-// preference key, the one the HyperReader app itself writes, so a report
-// opens in the theme the reader already chose.
-const saved = localStorage.getItem("hyperreader-theme");
-if (saved) document.documentElement.dataset.theme = saved;
-</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{TITLE}}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: '#003B95',
+            action: '#006CE4',
+            'action-hover': '#0057b8',
+            accent: '#FEBB02',
+            constructive: '#008009'
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    /* Inline style is bpages-legal only for what Tailwind can't express. */
+    .reveal { opacity: 0; transform: translateY(10px); transition: opacity .4s ease, transform .4s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
+  </style>
+  {{EXTERNAL}}
 </head>
-<body>
-<a href="#main" class="skip">Skip to content</a>
-<button class="theme" type="button" aria-label="Switch to dark theme" aria-pressed="false">◐</button>
-<div class="wrap">
+<body class="bg-gray-50 text-gray-700 font-sans antialiased min-h-screen">
+  <main class="max-w-5xl mx-auto px-4 py-10">
 
-<header class="masthead">
-  <p class="eyebrow">{{KIND}}</p>
-  <h1>{{TITLE}}</h1>
-  <p class="lede">{{LEDE}}</p>
-  <p class="meta"><span>{{DATE}}</span><span>{{SCOPE}}</span><span>{{SOURCES}}</span></p>
-</header>
+    <header class="mb-10">
+      <div class="text-xs font-semibold uppercase tracking-wide text-action mb-2">{{KIND}}</div>
+      <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-3">{{TITLE}}</h1>
+      <p class="text-lg text-gray-700 leading-relaxed max-w-2xl mb-4">{{LEDE}}</p>
+      <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
+        <span>{{DATE}}</span>
+        <span>Scope: {{SCOPE}}</span>
+        <span>Sources: {{SOURCES}}</span>
+      </div>
+    </header>
 
-<div class="layout">
-  <details class="toc">
-    <summary>Contents</summary>
-    <nav><ol>
-      {{CONTENTS}}
-    </ol></nav>
-  </details>
+    <nav class="mb-12 border border-gray-200 rounded-lg bg-white p-4">
+      <ul class="space-y-1 text-sm text-action">{{CONTENTS}}</ul>
+    </nav>
 
-  <main id="main">
-{{CONTENT}}
+    {{CONTENT}}
+
+    <footer class="mt-16 pt-6 border-t border-gray-200 text-sm text-gray-500">
+      <p>{{CAVEATS}}</p>
+      <p class="mt-1">{{DATE}}</p>
+    </footer>
+
   </main>
-</div>
 
-<footer>
-  <p>Generated {{DATE}}. {{CAVEATS}}</p>
-</footer>
-</div>
+  <script>
+    // Reveal-on-scroll (bpages entrance animation), once per element.
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (!e.isIntersecting) return;
+        const d = parseInt(e.target.dataset.delay) || 0;
+        setTimeout(() => e.target.classList.add('visible'), d);
+        io.unobserve(e.target);
+      });
+    });
+    document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
 
-<script>
-const root = document.documentElement;
-
-// Palette variables are declared with light-dark()/color-mix(), which
-// getComputedStyle().getPropertyValue() returns as unparsed function
-// text, not a colour. External libraries (mermaid, a chart library)
-// need an actual resolved colour string; this reads one the only
-// reliable way, by letting the cascade resolve it on a real element.
-const resolveColor = (name) => {
-  const probe = document.createElement("span");
-  probe.style.color = `var(${name})`;
-  document.body.appendChild(probe);
-  const value = getComputedStyle(probe).color;
-  probe.remove();
-  return value;
-};
-
-const themeBtn = document.querySelector(".theme");
-// HyperReader's own top bar already carries a dark/light control when a
-// report is opened inside its iframe, so a second floating control on the
-// same document would be a duplicate. Standalone (window.top === window),
-// there is no host control, so this stays the only one.
-const embedded = window.top !== window.self;
-if (embedded) {
-  themeBtn.hidden = true;
-} else {
-  const syncThemeBtn = () => {
-    const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-    themeBtn.setAttribute("aria-pressed", String(dark));
-    themeBtn.setAttribute("aria-label", dark ? "Switch to light theme" : "Switch to dark theme");
-  };
-  syncThemeBtn();
-  themeBtn.addEventListener("click", () => {
-    const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-    root.dataset.theme = dark ? "light" : "dark";
-    localStorage.setItem("hyperreader-theme", root.dataset.theme);
-    syncThemeBtn();
-    // Charts and mermaid render their own colours from the palette at
-    // render time; this is the one event that tells them to do it again.
-    // Highlighting needs no listener: its map is expressed in palette
-    // variables, which flip natively with no re-render.
-    document.dispatchEvent(new Event("themechange"));
-  });
-}
-
-// Sidebar contents: forced open on the wide layout, where it never needs
-// a manual toggle, and closed again on the way back down rather than
-// left expanded above content it no longer has room for. A `change`
-// listener, not a one-shot check, so resizing across the breakpoint
-// after load doesn't leave the sidebar dead in either direction.
-const wideLayout = matchMedia("(min-width: 64rem)");
-const syncToc = (e) => { document.querySelector(".toc").open = e.matches; };
-syncToc(wideLayout);
-wideLayout.addEventListener("change", syncToc);
-
-// Contents highlight: an IntersectionObserver over each section's own
-// bounds, biased to a band near the top of the viewport, replaces a
-// getBoundingClientRect scan run on every scroll event. No separate
-// "at bottom" case: once the last section leaves the band, its link
-// simply keeps the highlight it already has, because nothing later in
-// the document ever enters the band to take it.
-const tocLinks = new Map([...document.querySelectorAll('.toc a[href^="#"]')].map(a => [a.hash.slice(1), a]));
-const setActiveSection = (id) => { for (const [key, a] of tocLinks) a.classList.toggle("active", key === id); };
-const sectionSpy = new IntersectionObserver((entries) => {
-  const visible = entries.filter((e) => e.isIntersecting);
-  if (!visible.length) return;
-  visible.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-  setActiveSection(visible[0].target.id);
-}, { rootMargin: "-15% 0px -75% 0px" });
-for (const id of tocLinks.keys()) {
-  const el = document.getElementById(id);
-  if (el) sectionSpy.observe(el);
-}
-
-// Print carries the evidence the screen shows: open every disclosure
-// before printing, restore what the reader had open afterward.
-let disclosureState = null;
-addEventListener("beforeprint", () => {
-  const all = [...document.querySelectorAll("details")];
-  disclosureState = all.map((d) => d.open);
-  for (const d of all) d.open = true;
-});
-addEventListener("afterprint", () => {
-  if (!disclosureState) return;
-  const all = [...document.querySelectorAll("details")];
-  all.forEach((d, i) => { d.open = disclosureState[i]; });
-  disclosureState = null;
-});
-
-// Syntax highlighting: only code blocks that opt in with a `language-*`
-// class are touched, so hand-coloured .add/.del/.cm diff blocks (no such
-// class) are never re-tokenized. No-ops entirely when the script didn't
-// load (offline, or the report has no highlighted code).
-if (window.hljs) {
-  document.querySelectorAll("pre code[class*='language-']").forEach((el) => hljs.highlightElement(el));
-}
-
-// Mermaid: re-render on theme change by restoring each diagram's original
-// source (mermaid replaces element content with rendered SVG and will not
-// touch an already-processed node otherwise) and re-initializing with
-// theme variables read from the resolved palette.
-if (window.mermaid) {
-  const mermaidTheme = () => ({
-    startOnLoad: false,
-    theme: "base",
-    // A diagram wider than its column shrinks to fit by default, which
-    // is how axis-scale text becomes illegible on a narrow viewport.
-    // Render at natural size instead; pre.mermaid's own overflow-x
-    // scrolls it, the same way an oversized table already scrolls.
-    flowchart: { useMaxWidth: false },
-    sequence: { useMaxWidth: false },
-    state: { useMaxWidth: false },
-    themeVariables: {
-      background: resolveColor("--bg"),
-      primaryColor: resolveColor("--surface"),
-      primaryBorderColor: resolveColor("--border"),
-      primaryTextColor: resolveColor("--text"),
-      secondaryColor: resolveColor("--surface2"),
-      lineColor: resolveColor("--dim"),
-      textColor: resolveColor("--text"),
-      fontFamily: getComputedStyle(root).getPropertyValue("--sans"),
-    },
-  });
-  const diagrams = [...document.querySelectorAll("pre.mermaid")];
-  for (const el of diagrams) el.dataset.source = el.textContent;
-  const renderMermaid = () => {
-    mermaid.initialize(mermaidTheme());
-    for (const el of diagrams) {
-      el.removeAttribute("data-processed");
-      el.textContent = el.dataset.source;
+    // Auto-init the two bpages-safe libraries, if a report loaded them.
+    // No-op when the library never loaded (offline, or unused this report).
+    if (window.hljs) {
+      document.querySelectorAll('pre code[class*="language-"]').forEach((b) => window.hljs.highlightElement(b));
     }
-    mermaid.run({ nodes: diagrams, suppressErrors: true });
-  };
-  renderMermaid();
-  document.addEventListener("themechange", renderMermaid);
-}
-</script>
+    if (window.mermaid) {
+      window.mermaid.initialize({ startOnLoad: false, theme: 'neutral' });
+      window.mermaid.run();
+    }
+    // Charts render from their own per-figure inline scripts in the body.
+  </script>
 </body>
 </html>
