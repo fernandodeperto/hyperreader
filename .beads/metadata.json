@@ -1,7 +1,0 @@
-{
-  "database": "dolt",
-  "backend": "dolt",
-  "dolt_mode": "embedded",
-  "dolt_database": "hyperreader",
-  "project_id": "f32cbf80-9b34-422a-87f7-68e2f474c172"
-}
