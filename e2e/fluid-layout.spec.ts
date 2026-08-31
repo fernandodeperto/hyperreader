@@ -55,7 +55,6 @@ test("keeps narrow document-list controls within the viewport", async ({ page })
   await expect(page.locator("#pages-table")).toBeVisible();
   await expect(page.locator("#search")).toBeVisible();
   await expect(page.locator("#live-status")).toBeVisible();
-  await expect(page.locator("#theme-toggle")).toBeVisible();
 
   const geometry = await page.locator("#app").evaluate((shell) => {
     const rect = (selector: string) => {
@@ -70,7 +69,6 @@ test("keeps narrow document-list controls within the viewport", async ({ page })
       header: rect("header"),
       search: rect("#search"),
       liveStatus: rect("#live-status"),
-      themeToggle: rect("#theme-toggle"),
     };
   });
 
@@ -81,7 +79,6 @@ test("keeps narrow document-list controls within the viewport", async ({ page })
     geometry.header,
     geometry.search,
     geometry.liveStatus,
-    geometry.themeToggle,
   ]) {
     expect(surface.left).toBeGreaterThanOrEqual(0);
     expect(surface.right).toBeLessThanOrEqual(geometry.viewportWidth);
@@ -109,7 +106,6 @@ async function verifyPageScrollOwnership(page: Page): Promise<void> {
   await page.locator("#pages-table tbody tr").click();
   await expect(page.locator("#selected-slug")).toHaveText(slug);
   await expect(page.locator("#live-status")).toBeVisible();
-  await expect(page.locator("#theme-toggle")).toBeVisible();
   await expect(page.frameLocator("#page-frame").locator("#tall")).toBeVisible();
 
   const before = await page.evaluate(() => {

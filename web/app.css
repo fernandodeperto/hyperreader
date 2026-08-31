@@ -48,26 +48,6 @@ html[data-view="page"] body {
   overflow: hidden;
 }
 
-html[data-theme="light"] {
-  --bg: #f5f7fa;
-  --fg: #1c2430;
-  --surface: #ffffff;
-  --surface-alt: #edf1f5;
-  --surface-hover: #e3ebf5;
-  --border: #b9c3d0;
-  --border-subtle: #d6dde6;
-  --muted: #5f6b7a;
-  --accent: #1769c2;
-  --accent-ring: rgba(23, 105, 194, 0.25);
-  --status-live: #16803c;
-  --status-offline: #bd2738;
-  --error-fg: #9d1c2c;
-  --error-bg: #fcebed;
-  --error-border: #e4a2aa;
-  --shadow-sm: 0 1px 2px rgba(20, 32, 48, 0.12);
-  --shadow-md: 0 4px 16px rgba(20, 32, 48, 0.16);
-}
-
 * {
   box-sizing: border-box;
 }
@@ -99,7 +79,7 @@ html[data-view="page"] #app {
   overflow: hidden;
 }
 
-/* Header hosts the title, one context field, status, and theme controls. */
+/* Header hosts the title, one context field, and live status. */
 header {
   display: flex;
   align-items: center;
@@ -186,31 +166,6 @@ header h1 {
 
 #live-status[data-state="live"] {
   background: var(--status-live);
-}
-
-#theme-toggle {
-  flex: 0 0 2rem;
-  width: 2rem;
-  height: 2rem;
-  padding: 0;
-  margin-left: var(--space-2);
-  color: var(--fg);
-  font: inherit;
-  line-height: 1;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  background: var(--surface);
-  cursor: pointer;
-}
-
-#theme-toggle:hover {
-  background: var(--surface-hover);
-}
-
-#theme-toggle:focus-visible {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 #search:focus {

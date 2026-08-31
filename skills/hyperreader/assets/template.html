@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{TITLE}}</title>
+  <!-- Dark-only base: HyperReader shows every page in its fixed dark shell.
+       This inline rule paints the correct base color before Tailwind loads
+       and if the CDN is unreachable. Colors here match the reader shell's own
+       --bg/--fg tokens (web/app.css) exactly, not Tailwind's gray scale
+       (which is blue-tinted). Do not use prefers-color-scheme. -->
+  <style>
+    html { background-color: #16181d; color: #e8e8e8; }
+    .reveal { opacity: 0; transform: translateY(10px); transition: opacity .4s ease, transform .4s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
+  </style>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: {
+        brand: '#003B95', action: '#006CE4', 'action-hover': '#0057b8',
+        accent: '#FEBB02', constructive: '#008009',
+        page: '#16181d', surface: '#1f2229', 'surface-alt': '#262a33',
+        ink: '#e8e8e8', muted: '#9a9fa8', line: '#3a3f4a'
+      } } }
+    };
+  </script>
+</head>
+<body class="bg-page text-ink font-sans antialiased min-h-screen">
+
+  <main class="max-w-5xl mx-auto px-4 py-10">
+    <h1 class="text-3xl font-bold text-ink mb-2">{{TITLE}}</h1>
+    <p class="text-muted mb-8">{{SUBTITLE}}</p>
+
+    {{CONTENT}}
+  </main>
+
+  <script>
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const d = parseInt(e.target.dataset.delay) || 0;
+          setTimeout(() => e.target.classList.add('visible'), d);
+        }
+      });
+    });
+    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+  </script>
+</body>
+</html>

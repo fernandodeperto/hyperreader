@@ -350,13 +350,13 @@
   }
 
   // Older or externally-authored stored documents can carry their own
-  // floating theme control (the generate-html report template's
-  // `.theme` button). HyperReader's top bar now owns that affordance for
-  // anything shown in the trusted iframe, so strip the embedded one on
-  // every load — including "about:blank" (a harmless no-op) and pages
-  // that never had one. The iframe is always same-origin (served from
-  // this API), so contentDocument access never throws in practice; the
-  // try/catch only guards a future same-origin assumption changing.
+  // floating theme control (a `.theme` button). HyperReader renders every
+  // page in its fixed dark shell and never exposes a theme toggle, so strip
+  // any embedded one on every load — including "about:blank" (a harmless
+  // no-op) and pages that never had one. The iframe is always same-origin
+  // (served from this API), so contentDocument access never throws in
+  // practice; the try/catch only guards a future same-origin assumption
+  // changing.
   function removeEmbeddedThemeControls() {
     var frame = byId("page-frame");
     if (!frame) {
@@ -377,35 +377,8 @@
     }
   }
 
-  // The trusted iframe is a separate document: custom properties on the
-  // shell's <html> do not cross that boundary, so switching the shell's
-  // theme alone leaves stored content on its own palette. A
-  // generate-html report reads/writes the same data-theme attribute and
-  // listens for "themechange" (to re-render mermaid/chart colors), so
-  // mirroring both here keeps a report's palette in step with the
-  // shell. Arbitrary stored HTML with no such attribute or listener is
-  // unaffected — this only sets an attribute nothing there queries.
-  function syncEmbeddedTheme() {
-    var frame = byId("page-frame");
-    if (!frame) {
-      return;
-    }
-    try {
-      var doc = frame.contentDocument;
-      if (!doc || !doc.documentElement) {
-        return;
-      }
-      doc.documentElement.dataset.theme = document.documentElement.dataset.theme;
-      doc.dispatchEvent(new Event("themechange"));
-    } catch (e) {
-      // Cross-origin content would throw on contentDocument access;
-      // nothing to sync in that case.
-    }
-  }
-
   function onPageFrameLoad() {
     removeEmbeddedThemeControls();
-    syncEmbeddedTheme();
   }
 
   // Handle clicks on page rows through event delegation on the stable tbody.
@@ -484,25 +457,6 @@
     renderView();
   }
 
-  function toggleTheme() {
-    var root = document.documentElement;
-    root.dataset.theme = root.dataset.theme === "light" ? "dark" : "light";
-    syncThemeToggle();
-    syncEmbeddedTheme();
-  }
-
-  function syncThemeToggle() {
-    var toggle = byId("theme-toggle");
-    if (!toggle) {
-      return;
-    }
-    var switchToLight = document.documentElement.dataset.theme !== "light";
-    var label = switchToLight ? "Switch to light theme" : "Switch to dark theme";
-    toggle.textContent = switchToLight ? "\u2600" : "\u263E";
-    toggle.setAttribute("aria-label", label);
-    toggle.title = label;
-  }
-
   function init() {
     var search = byId("search");
     if (search) {
@@ -512,11 +466,6 @@
     var home = byId("home-link");
     if (home) {
       home.addEventListener("click", onHomeActivate);
-    }
-
-    var themeToggle = byId("theme-toggle");
-    if (themeToggle) {
-      themeToggle.addEventListener("click", toggleTheme);
     }
 
     // A single delegated listener covers current and future table rows.
@@ -531,7 +480,6 @@
       pageFrame.addEventListener("load", onPageFrameLoad);
     }
 
-    syncThemeToggle();
     renderView();
 
     fetchPages("");

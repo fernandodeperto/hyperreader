@@ -133,7 +133,6 @@ func TestHandler_SameTabReaderSurfaces(t *testing.T) {
 		`id="search"`,
 		`id="selected-slug" hidden`,
 		`id="live-status"`,
-		`id="theme-toggle"`,
 		`id="table-view"`,
 		`id="page-view"`,
 		`<iframe id="page-frame" title="Stored page" src="about:blank"></iframe>`,
@@ -144,10 +143,14 @@ func TestHandler_SameTabReaderSurfaces(t *testing.T) {
 	}
 	for _, pair := range [][2]string{
 		{`id="top-bar-context"`, `id="live-status"`},
-		{`id="live-status"`, `id="theme-toggle"`},
 	} {
 		if strings.Index(html, pair[0]) >= strings.Index(html, pair[1]) {
 			t.Errorf("index.html must place %q before %q", pair[0], pair[1])
+		}
+	}
+	for _, gone := range []string{`id="theme-toggle"`, `data-theme`} {
+		if strings.Contains(html, gone) {
+			t.Errorf("index.html must not contain removed theme markup %q", gone)
 		}
 	}
 	if strings.Contains(html, `id="page-frame" sandbox`) {
@@ -167,14 +170,12 @@ func TestHandler_SameTabReaderSurfaces(t *testing.T) {
 		`addEventListener("keydown"`,
 		`addEventListener("load", onPageFrameLoad)`,
 		`querySelectorAll(".theme")`,
-		`doc.documentElement.dataset.theme = document.documentElement.dataset.theme`,
-		`new Event("themechange")`,
 	} {
 		if !strings.Contains(js, want) {
 			t.Errorf("app.js missing %q", want)
 		}
 	}
-	for _, gone := range []string{`window.open`, `"_blank"`} {
+	for _, gone := range []string{`window.open`, `"_blank"`, `toggleTheme`, `syncThemeToggle`, `syncEmbeddedTheme`, `themechange`} {
 		if strings.Contains(js, gone) {
 			t.Errorf("app.js must not contain new-tab wiring %q", gone)
 		}
