@@ -1,6 +1,6 @@
 ---
 name: hyperreader
-description: "Generate a Tailwind-based HTML page following the Booking Pages design ruleset (flat design, dark theme) and send it to the running HyperReader server via the send_html MCP tool. Use when the user wants to view, publish, send, or update an HTML page, report, or artifact in HyperReader — including MR/code-review pages that show each change as a syntax-highlighted diff with space for reviewer analysis."
+description: "Generate a Tailwind-based HTML page following the Booking Pages design ruleset (flat design, dark theme) and send it to the running HyperReader server via the send_html MCP tool. Use when the user wants to view, publish, send, or update an HTML page, report, or artifact in HyperReader — including code review pages that show each change as a syntax-highlighted diff with space for reviewer analysis."
 metadata:
   tags:
     - html-artifacts
@@ -27,7 +27,7 @@ design ruleset and deliver it to the running HyperReader reader through the
 the terminal.
 
 This skill is self-contained. Follow only the bundled `references/guidelines.md`,
-`assets/template.html`, and `assets/mr-review-template.html`. Do not fetch
+`assets/template.html`, and `assets/code-review-template.html`. Do not fetch
 external rulesets (including the bpages CLI), read other skills, or browse
 other sources.
 
@@ -49,14 +49,14 @@ local, so it is safe to run).
 ### 2. Generate the HTML
 
 For a general page, read `skill://hyperreader/assets/template.html` and
-`skill://hyperreader/references/guidelines.md`. For reviewing a merge request
-or code change, read `skill://hyperreader/assets/mr-review-template.html`
+`skill://hyperreader/references/guidelines.md`. For reviewing a
+code change, read `skill://hyperreader/assets/code-review-template.html`
 instead — it loads syntax highlighting and defines change-block + analysis
 components. Both templates share the same `{{TITLE}}`/`{{SUBTITLE}}`/
 `{{CONTENT}}` fill; for the review template, `{{CONTENT}}` is a verdict banner
 plus one change block per change (diff via `language-diff-<lang>
 diff-highlight`, plus an analysis panel; each change block is a numbered,
-collapsible card) — see the "MR review components" section of
+collapsible card) — see the "Code review components" section of
 `references/guidelines.md`.
 
 Fill `{{TITLE}}`, `{{SUBTITLE}}`, and `{{CONTENT}}`, authoring `<section>`

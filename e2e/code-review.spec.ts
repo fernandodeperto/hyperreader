@@ -1,4 +1,4 @@
-// Playwright coverage for the MR-review template: change block renders inside
+// Playwright coverage for the code-review template: change block renders inside
 // the fixed dark shell, isolated from the count-asserting specs via a unique
 // timestamped slug. Live Prism syntax highlighting (the CDN-dependent .token
 // spans) is verified manually against the running reader, not asserted here —
@@ -7,18 +7,18 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { test, expect } from "@playwright/test";
 
-test("a page composed from the MR-review template renders dark in the reader", async ({ page }) => {
-  const slug = `mr-review-dark-${Date.now()}`;
-  const templatePath = path.join(__dirname, "..", "skills", "hyperreader", "assets", "mr-review-template.html");
+test("a page composed from the code-review template renders dark in the reader", async ({ page }) => {
+  const slug = `code-review-dark-${Date.now()}`;
+  const templatePath = path.join(__dirname, "..", "skills", "hyperreader", "assets", "code-review-template.html");
   const values: Record<string, string> = {
-    TITLE: "Review: sample MR",
+    TITLE: "Review: sample change",
     SUBTITLE: "jdoe · feature → main",
     CONTENT:
       '<section class="reveal mb-8 border border-line rounded-lg p-5 bg-surface">' +
       '<div class="flex flex-wrap items-center gap-3 mb-3">' +
       '<span class="inline-flex items-center text-xs font-semibold uppercase tracking-wide px-2.5 py-1 rounded border border-accent text-accent">Request changes</span>' +
       '<span class="text-muted text-sm font-mono">1 file · +2 −1</span></div>' +
-      '<p class="text-ink leading-relaxed">One-paragraph overall assessment of the MR.</p></section>' +
+      '<p class="text-ink leading-relaxed">One-paragraph overall assessment of the change.</p></section>' +
       '<details id="change-1" class="reveal scroll-mt-4 mb-8 border border-line rounded-lg overflow-hidden bg-surface" open>' +
       '<summary class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 bg-surface-alt cursor-pointer">' +
       '<span class="flex items-center gap-3 min-w-0">' +

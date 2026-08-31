@@ -84,9 +84,9 @@ Example `{{CONTENT}}` section:
       </div>
     </section>
 
-## MR review components
+## Code review components
 
-These components target `assets/mr-review-template.html`, which loads Prism.js
+These components target `assets/code-review-template.html`, which loads Prism.js
 from `cdn.jsdelivr.net` (already an allowed script host per Design principles
 #2) to syntax-highlight diffs. Inside `{{CONTENT}}`, order the pieces: verdict
 banner → optional "Files reviewed" index → one change block per change.
@@ -113,7 +113,7 @@ Top of `{{CONTENT}}`; the overall recommendation plus totals:
         <span class="inline-flex items-center text-xs font-semibold uppercase tracking-wide px-2.5 py-1 rounded border border-accent text-accent">Request changes</span>
         <span class="text-muted text-sm font-mono">3 files · +128 −44</span>
       </div>
-      <p class="text-ink leading-relaxed">One-paragraph overall assessment of the MR.</p>
+      <p class="text-ink leading-relaxed">One-paragraph overall assessment of the change.</p>
     </section>
 
 Recommendation badge color: Approve → `border-constructive text-constructive`;
@@ -121,7 +121,7 @@ Request changes → `border-accent text-accent`; Comment → `border-action text
 
 ### Files reviewed index
 
-Optional, recommended for complex MRs. Each entry links to its change block's `id`:
+Optional, recommended for complex reviews. Each entry links to its change block's `id`:
 
     <nav class="reveal mb-8 border border-line rounded-lg p-5 bg-surface">
       <h2 class="text-sm font-bold text-muted uppercase tracking-wide mb-3">Files reviewed</h2>
