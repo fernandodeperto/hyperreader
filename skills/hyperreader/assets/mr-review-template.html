@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{TITLE}}</title>
+  <!-- Dark-only base: HyperReader shows every page in its fixed dark shell.
+       Paints the correct base color before Tailwind/Prism load and if the
+       CDN is unreachable. Colors match the reader shell's own --bg/--fg
+       tokens (web/app.css) exactly. Do not use prefers-color-scheme. -->
+  <style>
+    html { background-color: #16181d; color: #e8e8e8; }
+    .reveal { opacity: 0; transform: translateY(10px); transition: opacity .4s ease, transform .4s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
+    /* Prism diff panels sit inside flat surface cards. Strip Prism's own
+       chrome (rounded corners, drop shadow, slate background, text-shadow)
+       so code matches the dark shell and the flat-design rule. */
+    pre[class*="language-"] { margin: 0; border-radius: 0; background: #16181d; }
+    code[class*="language-"], pre[class*="language-"] { text-shadow: none; font-size: 13px; }
+    summary { list-style: none; }
+    summary::-webkit-details-marker { display: none; }
+    .change-caret { transition: transform .2s ease; }
+    details[open] .change-caret { transform: rotate(90deg); }
+  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/diff-highlight/prism-diff-highlight.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: { colors: {
+      brand: '#003B95', action: '#006CE4', 'action-hover': '#0057b8',
+      accent: '#FEBB02', constructive: '#008009',
+      page: '#16181d', surface: '#1f2229', 'surface-alt': '#262a33',
+      ink: '#e8e8e8', muted: '#9a9fa8', line: '#3a3f4a'
+    } } } };
+    // Prism auto-runs on DOMContentLoaded; hold it (manual) so the
+    // autoloader grammar path is set before the first highlight pass.
+    window.Prism = window.Prism || {}; window.Prism.manual = true;
+  </script>
+</head>
+<body class="bg-page text-ink font-sans antialiased min-h-screen">
+
+  <main class="max-w-5xl mx-auto px-4 py-10">
+    <h1 class="text-3xl font-bold text-ink mb-2">{{TITLE}}</h1>
+    <p class="text-muted mb-8">{{SUBTITLE}}</p>
+
+    <!-- {{CONTENT}}: a verdict banner, an optional "Files reviewed" index,
+         then one change block per change. See references/guidelines.md >
+         "MR review components". -->
+    {{CONTENT}}
+  </main>
+
+  <!-- Syntax highlighting: Prism core + autoloader (fetches the diff grammar
+       and each file's language on demand) + diff-highlight (colors +/- lines
+       AND highlights the underlying language). jsdelivr is an allowed host. -->
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/diff-highlight/prism-diff-highlight.min.js"></script>
+  <script>
+    Prism.plugins.autoloader.languages_path = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/';
+    Prism.highlightAll();
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const d = parseInt(e.target.dataset.delay) || 0;
+          setTimeout(() => e.target.classList.add('visible'), d);
+        }
+      });
+    });
+    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+  </script>
+</body>
+</html>

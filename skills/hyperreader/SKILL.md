@@ -1,6 +1,6 @@
 ---
 name: hyperreader
-description: "Generate a Tailwind-based HTML page following the Booking Pages design ruleset (flat design, dark theme) and send it to the running HyperReader server via the send_html MCP tool. Use when the user wants to view, publish, send, or update an HTML page, report, or artifact in HyperReader."
+description: "Generate a Tailwind-based HTML page following the Booking Pages design ruleset (flat design, dark theme) and send it to the running HyperReader server via the send_html MCP tool. Use when the user wants to view, publish, send, or update an HTML page, report, or artifact in HyperReader — including MR/code-review pages that show each change as a syntax-highlighted diff with space for reviewer analysis."
 metadata:
   tags:
     - html-artifacts
@@ -26,9 +26,10 @@ design ruleset and deliver it to the running HyperReader reader through the
 `send_html` MCP tool, so it opens in HyperReader instead of scrolling past in
 the terminal.
 
-This skill is self-contained. Follow only the bundled `references/guidelines.md`
-and `assets/template.html`. Do not fetch external rulesets (including the bpages
-CLI), read other skills, or browse other sources.
+This skill is self-contained. Follow only the bundled `references/guidelines.md`,
+`assets/template.html`, and `assets/mr-review-template.html`. Do not fetch
+external rulesets (including the bpages CLI), read other skills, or browse
+other sources.
 
 ## Workflow
 
@@ -47,13 +48,23 @@ local, so it is safe to run).
 
 ### 2. Generate the HTML
 
-Read `skill://hyperreader/assets/template.html` and
-`skill://hyperreader/references/guidelines.md`. Fill `{{TITLE}}`, `{{SUBTITLE}}`,
-and `{{CONTENT}}`, authoring `<section>` content that follows the guidelines:
-Tailwind via CDN, flat design, the Booking brand palette, `<main>`/`<section>`
-structure, and `.reveal` animations. Keep it a single self-contained document
-under 5 MB. Do not add a theme toggle — the reader renders dark-only and strips
-embedded `.theme` controls.
+For a general page, read `skill://hyperreader/assets/template.html` and
+`skill://hyperreader/references/guidelines.md`. For reviewing a merge request
+or code change, read `skill://hyperreader/assets/mr-review-template.html`
+instead — it loads syntax highlighting and defines change-block + analysis
+components. Both templates share the same `{{TITLE}}`/`{{SUBTITLE}}`/
+`{{CONTENT}}` fill; for the review template, `{{CONTENT}}` is a verdict banner
+plus one change block per change (diff via `language-diff-<lang>
+diff-highlight`, plus an analysis panel; each change block is a numbered,
+collapsible card) — see the "MR review components" section of
+`references/guidelines.md`.
+
+Fill `{{TITLE}}`, `{{SUBTITLE}}`, and `{{CONTENT}}`, authoring `<section>`
+content that follows the guidelines: Tailwind via CDN, flat design, the
+Booking brand palette, `<main>`/`<section>` structure, and `.reveal`
+animations. Keep it a single self-contained document under 5 MB. Do not add a
+theme toggle — the reader renders dark-only and strips embedded `.theme`
+controls.
 
 ### 3. Ensure the reader is running
 
