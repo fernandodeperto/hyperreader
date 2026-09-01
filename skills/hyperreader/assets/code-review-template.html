@@ -10,13 +10,6 @@
        tokens (web/app.css) exactly. Do not use prefers-color-scheme. -->
   <style>
     html { background-color: #16181d; color: #e8e8e8; }
-    .reveal { opacity: 0; transform: translateY(10px); transition: opacity .4s ease, transform .4s ease; }
-    .reveal.visible { opacity: 1; transform: none; }
-    /* Prism diff panels sit inside flat surface cards. Strip Prism's own
-       chrome (rounded corners, drop shadow, slate background, text-shadow)
-       so code matches the dark shell and the flat-design rule. */
-    pre[class*="language-"] { margin: 0; border-radius: 0; background: #16181d; }
-    code[class*="language-"], pre[class*="language-"] { text-shadow: none; font-size: 13px; }
     summary { list-style: none; }
     summary::-webkit-details-marker { display: none; }
     .change-caret { transition: transform .2s ease; }
@@ -24,11 +17,39 @@
   </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/diff-highlight/prism-diff-highlight.min.css">
+  <style>
+    /* Declared AFTER the Prism theme so equal-specificity rules win by source
+       order. H1: pull diff panels back onto the flat dark shell (#16181d) from
+       Prism Tomorrow's slate; strip Prism chrome (radius/shadow/text-shadow). */
+    pre[class*="language-"] { margin: 0; border-radius: 0; background: #16181d; }
+    code[class*="language-"], pre[class*="language-"] { text-shadow: none; font-size: 13px; }
+    /* M2: raise diff add/remove tint + 2px inset gutter so state reads by
+       position + hue (color-blind safe), not the +/- glyph alone. */
+    pre.diff-highlight > code .token.inserted:not(.prefix),
+    pre > code.diff-highlight .token.inserted:not(.prefix) {
+      background-color: rgba(63,185,80,.15); box-shadow: inset 2px 0 0 #3fb950;
+    }
+    pre.diff-highlight > code .token.deleted:not(.prefix),
+    pre > code.diff-highlight .token.deleted:not(.prefix) {
+      background-color: rgba(248,81,73,.15); box-shadow: inset 2px 0 0 #f85149;
+    }
+    /* M3: overflowing diffs get a visible thin scrollbar as the clip
+       affordance. Prism gives the inner <pre> overflow:auto, so it is the
+       real scroller (the .overflow-x-auto wrapper does not scroll). */
+    pre[class*="language-"], .overflow-x-auto { scrollbar-width: thin; scrollbar-color: #4b5162 transparent; }
+    pre[class*="language-"]::-webkit-scrollbar, .overflow-x-auto::-webkit-scrollbar { height: 8px; }
+    pre[class*="language-"]::-webkit-scrollbar-thumb, .overflow-x-auto::-webkit-scrollbar-thumb { background: #4b5162; border-radius: 4px; }
+    pre[class*="language-"]::-webkit-scrollbar-track, .overflow-x-auto::-webkit-scrollbar-track { background: transparent; }
+    /* L1: lift card / nav / number-chip / muted-badge outlines to a >=3:1 line
+       (#6b7385 = 3.35:1 on surface) so grouping is defined; thin internal
+       (border-t) separators stay subtle at the #3a3f4a `line` token. */
+    details.border-line, nav.border-line, section.border-line, span.border-line { border-color: #6b7385; }
+  </style>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = { theme: { extend: { colors: {
-      brand: '#003B95', action: '#006CE4', 'action-hover': '#0057b8',
-      accent: '#FEBB02', constructive: '#008009',
+      brand: '#003B95', action: '#6aa9ff', 'action-hover': '#8fc1ff',
+      accent: '#FEBB02', constructive: '#56d364',
       page: '#16181d', surface: '#1f2229', 'surface-alt': '#262a33',
       ink: '#e8e8e8', muted: '#9a9fa8', line: '#3a3f4a'
     } } } };
@@ -40,7 +61,7 @@
 <body class="bg-page text-ink font-sans antialiased min-h-screen">
 
   <main class="max-w-5xl mx-auto px-4 py-10">
-    <h1 class="text-3xl font-bold text-ink mb-2">{{TITLE}}</h1>
+    <h1 class="text-2xl md:text-3xl font-bold text-ink mb-2">{{TITLE}}</h1>
     <p class="text-muted mb-8">{{SUBTITLE}}</p>
 
     <!-- {{CONTENT}}: a verdict banner, an optional "Files reviewed" index,
@@ -58,15 +79,6 @@
   <script>
     Prism.plugins.autoloader.languages_path = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/';
     Prism.highlightAll();
-    const io = new IntersectionObserver(entries => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          const d = parseInt(e.target.dataset.delay) || 0;
-          setTimeout(() => e.target.classList.add('visible'), d);
-        }
-      });
-    });
-    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
   </script>
 </body>
 </html>

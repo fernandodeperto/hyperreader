@@ -45,19 +45,20 @@ theme; there is no light theme and no theme toggle.
    fills instead of `shadow-*`, `drop-shadow-*`, decorative `ring-*`, elevation
    gradients, or `backdrop-blur-*`. Color, spacing, and typography carry
    hierarchy.
-4. **Animations** — CSS transitions only, never JS animation libraries. Standard
-   entrance is the `.reveal` fade-up (opacity + `translateY(10px)` -> 0).
-   Duration 0.3s-0.5s (never over 0.6s), easing `ease`/`ease-out` (never
-   `linear` for entrances), motion always upward. Stagger with `data-delay`
-   (ms), triggered by adding `.visible` via IntersectionObserver.
+4. **Animations** — CSS transitions only; never JS animation libraries and
+   never scroll-triggered reveals. Content must render immediately (no
+   opacity/`translateY` gating and no IntersectionObserver), so print, no-JS,
+   and full-page screenshots are never blank. The only motion is a small CSS
+   transition on interactive state — e.g. the change-block caret rotating on
+   `<details open>`. Duration 0.2s-0.5s, easing `ease`/`ease-out`.
 5. **Typography** — system font stack (`font-sans`; no Google Fonts or font
    CDNs). Body and headings `text-ink leading-relaxed` (headings add
    `font-bold`); muted/secondary text `text-muted`; inline code
    `font-mono text-sm bg-surface-alt text-ink px-1.5 py-0.5 rounded`.
 6. **Color palette** — Booking brand tokens plus shell-matching semantic
    tokens, all registered in `tailwind.config`: `brand #003B95`,
-   `action #006CE4`, `action-hover #0057b8`, `accent #FEBB02`,
-   `constructive #008009`, and `page #16181d`, `surface #1f2229`,
+   `action #6aa9ff`, `action-hover #8fc1ff`, `accent #FEBB02`,
+   `constructive #56d364`, and `page #16181d`, `surface #1f2229`,
    `surface-alt #262a33`, `ink #e8e8e8`, `muted #9a9fa8`, `line #3a3f4a`
    (exact hex values in `assets/template.html`, mirroring `web/app.css`'s
    `--bg`/`--fg`/`--surface`/`--muted`/`--border`). Never use Tailwind's
@@ -108,7 +109,7 @@ banner → optional "Files reviewed" index → one change block per change.
 
 Top of `{{CONTENT}}`; the overall recommendation plus totals:
 
-    <section class="reveal mb-8 border border-line rounded-lg p-5 bg-surface">
+    <section class="mb-8 border border-line rounded-lg p-5 bg-surface">
       <div class="flex flex-wrap items-center gap-3 mb-3">
         <span class="inline-flex items-center text-xs font-semibold uppercase tracking-wide px-2.5 py-1 rounded border border-accent text-accent">Request changes</span>
         <span class="text-muted text-sm font-mono">3 files · +128 −44</span>
@@ -123,7 +124,7 @@ Request changes → `border-accent text-accent`; Comment → `border-action text
 
 Optional, recommended for complex reviews. Each entry links to its change block's `id`:
 
-    <nav class="reveal mb-8 border border-line rounded-lg p-5 bg-surface">
+    <nav class="mb-8 border border-line rounded-lg p-5 bg-surface">
       <h2 class="text-sm font-bold text-muted uppercase tracking-wide mb-3">Files reviewed</h2>
       <ul class="space-y-1">
       <li><a href="#change-1" class="text-action hover:text-action-hover font-mono text-sm">1. internal/api/handlers.go</a> <span class="text-muted text-xs">+42 −7 · blocking</span></li>
@@ -139,7 +140,7 @@ card. Number the cards sequentially from 1 in document order, set
 badge. `scroll-mt-4` offsets anchor jumps. The number is how a reviewer refers
 to a card ("card 3"); the Files reviewed index links to `#change-N`.
 
-    <details id="change-1" class="reveal scroll-mt-4 mb-8 border border-line rounded-lg overflow-hidden bg-surface" open>
+    <details id="change-1" class="scroll-mt-4 mb-8 border border-line rounded-lg overflow-hidden bg-surface" open>
       <summary class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 bg-surface-alt cursor-pointer">
         <span class="flex items-center gap-3 min-w-0">
           <svg class="change-caret w-3 h-3 shrink-0 text-muted" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>

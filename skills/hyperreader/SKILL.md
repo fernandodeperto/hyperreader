@@ -61,8 +61,7 @@ collapsible card) — see the "Code review components" section of
 
 Fill `{{TITLE}}`, `{{SUBTITLE}}`, and `{{CONTENT}}`, authoring `<section>`
 content that follows the guidelines: Tailwind via CDN, flat design, the
-Booking brand palette, `<main>`/`<section>` structure, and `.reveal`
-animations. Keep it a single self-contained document under 5 MB. Do not add a
+Booking brand palette, and `<main>`/`<section>` structure. Keep it a single self-contained document under 5 MB. Do not add a
 theme toggle — the reader renders dark-only and strips embedded `.theme`
 controls.
 
