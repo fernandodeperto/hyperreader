@@ -92,6 +92,9 @@ html[data-view="page"] header {
   min-width: 0;
   margin-bottom: 0;
   padding: var(--space-6) var(--space-5) var(--space-5);
+  /* Seam between the fixed shell header and the embedded page iframe, which
+     otherwise share --bg and blur together on load. */
+  border-bottom: 1px solid var(--border);
 }
 
 header h1 {
