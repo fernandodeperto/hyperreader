@@ -42,6 +42,17 @@
     return el;
   }
 
+  // routeSlug returns the slug encoded in a /read/<slug> path, or "" for the
+  // table route. The stored slug shape ([a-z0-9-]) needs no decoding.
+  function routeSlug() {
+    var path = window.location.pathname;
+    var prefix = "/read/";
+    if (path.indexOf(prefix) === 0) {
+      return path.slice(prefix.length);
+    }
+    return "";
+  }
+
   // Surface fetch errors in the in-UI error region (R002). Kept stable from
   // T01 so fetch handlers share one error surface.
   window.hyperReader = {
@@ -338,7 +349,7 @@
   // Select page view and navigate the trusted iframe to the raw stored
   // document. Direct iframe navigation preserves document-level styles,
   // scripts, relative URLs, and viewport units.
-  function openPage(slug) {
+  function openPage(slug, push) {
     var frame = byId("page-frame");
     if (!frame) {
       return;
@@ -346,6 +357,13 @@
     state.selectedSlug = slug;
     state.view = "page";
     frame.src = API + "/" + encodeURIComponent(slug) + "/content";
+    if (push !== false) {
+      window.history.pushState(
+        { view: "page", slug: slug },
+        "",
+        "/read/" + encodeURIComponent(slug)
+      );
+    }
     renderView();
   }
 
@@ -435,6 +453,22 @@
     selectedSlug.title = showingPage ? state.selectedSlug : "";
   }
 
+  // showTable returns to the table view, clearing the reader iframe. push
+  // controls whether a new /"" history entry is added (true for the home
+  // link, false when syncing to an existing history entry via popstate).
+  function showTable(push) {
+    state.view = "table";
+    state.selectedSlug = "";
+    var frame = byId("page-frame");
+    if (frame) {
+      frame.src = "about:blank";
+    }
+    if (push !== false) {
+      window.history.pushState({ view: "table" }, "", "/");
+    }
+    renderView();
+  }
+
   function onHomeActivate(evt) {
     if (
       evt.defaultPrevented ||
@@ -448,13 +482,18 @@
     }
 
     evt.preventDefault();
-    state.view = "table";
-    state.selectedSlug = "";
-    var frame = byId("page-frame");
-    if (frame) {
-      frame.src = "about:blank";
+    showTable(true);
+  }
+
+  // onPopState syncs the view to the address bar on back/forward — URLs
+  // now change on navigation, so without this the view and the bar desync.
+  function onPopState() {
+    var slug = routeSlug();
+    if (slug) {
+      openPage(slug, false);
+    } else {
+      showTable(false);
     }
-    renderView();
   }
 
   function init() {
@@ -480,7 +519,14 @@
       pageFrame.addEventListener("load", onPageFrameLoad);
     }
 
-    renderView();
+    window.addEventListener("popstate", onPopState);
+
+    var initialSlug = routeSlug();
+    if (initialSlug) {
+      openPage(initialSlug, false);
+    } else {
+      renderView();
+    }
 
     fetchPages("");
 

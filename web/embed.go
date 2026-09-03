@@ -16,6 +16,7 @@ package web
 import (
 	"embed"
 	"net/http"
+	"strings"
 )
 
 // assets holds the static UI files compiled into the binary at build time.
@@ -29,10 +30,30 @@ var assets embed.FS
 // Handler returns an http.Handler that serves the embedded static UI. It is
 // mounted at "/" on the serve mux.
 //
-// http.FileServer serves index.html for "/" (its directory-index behavior)
-// and serves app.js / app.css by path with browser-usable content types.
-// The embedded FS root is the web/ directory, so no prefix stripping is
-// needed when mounted at "/". Unknown paths return 404.
+// A GET under /read/ is a client-side reader route (/read/<slug>) with no
+// embedded asset of its own; serve the index.html shell so app.js can
+// restore the page view from the URL on a full reload. Every other unknown
+// path still falls through to the file server's 404 so a typo'd route is
+// not masked by the SPA shell.
 func Handler() http.Handler {
-	return http.FileServer(http.FS(assets))
+	fileServer := http.FileServer(http.FS(assets))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/read/") {
+			serveIndex(w)
+			return
+		}
+		fileServer.ServeHTTP(w, r)
+	})
+}
+
+// serveIndex writes the embedded index.html shell as text/html. Used for
+// SPA deep-links (/read/<slug>) that carry no asset of their own.
+func serveIndex(w http.ResponseWriter) {
+	data, err := assets.ReadFile("index.html")
+	if err != nil {
+		http.Error(w, "index unavailable", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(data)
 }

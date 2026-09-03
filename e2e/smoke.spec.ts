@@ -144,3 +144,33 @@ test("removes a stored document's own embedded theme button", async ({ page }) =
   await expect(frame.locator("#content-marker")).toHaveText("report body");
   await expect(frame.locator(".theme")).toHaveCount(0);
 });
+
+test("reader URL carries the slug and survives a full reload", async ({ page }) => {
+  await seed(page, {
+    slug: "reload-runbook",
+    name: "Reload Runbook",
+    description: "reload target",
+    html: SCRIPT_HTML,
+  });
+
+  await page.goto("/");
+  await expect(page.locator("#loading-state")).toBeHidden();
+  await page.locator("#search").fill("Reload Runbook");
+  await page.locator("#pages-table tbody tr").first().click();
+
+  await expect(page).toHaveURL(/\/read\/reload-runbook$/);
+  await expectStoredPage(page);
+  await expect(page.locator("#selected-slug")).toHaveText("reload-runbook");
+
+  // Full reload must restore the reader view, not fall back to the table.
+  await page.reload();
+  await expect(page).toHaveURL(/\/read\/reload-runbook$/);
+  await expectStoredPage(page);
+  await expect(page.locator("#selected-slug")).toHaveText("reload-runbook");
+
+  // Home returns to the table and resets the URL to "/".
+  await page.locator("#home-link").click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator("#table-view")).toBeVisible();
+  await expect(page.locator("#page-view")).toBeHidden();
+});

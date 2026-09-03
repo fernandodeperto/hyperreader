@@ -78,6 +78,31 @@ func TestHandler_UnknownPath404(t *testing.T) {
 	}
 }
 
+// TestHandler_ServesSPAReadRoute proves a GET under /read/ — a client-side
+// reader route with no embedded asset of its own — serves the index.html
+// shell so app.js can restore the page view from the URL on a full reload,
+// instead of falling through to the file server's 404.
+func TestHandler_ServesSPAReadRoute(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/read/deploy-runbook", nil)
+	rec := httptest.NewRecorder()
+
+	Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /read/deploy-runbook status = %d, want 200", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+		t.Fatalf("GET /read/deploy-runbook Content-Type = %q, want text/html prefix", ct)
+	}
+	body, err := io.ReadAll(rec.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if !strings.Contains(string(body), "<title>HyperReader</title>") {
+		t.Fatalf("GET /read/deploy-runbook body does not contain the expected <title>; got: %s", body)
+	}
+}
+
 // TestHandler_TableAndSearchSurfaces is the build-time gate proving the
 // embedded UI actually contains the page-table + live-FTS5-search surfaces
 // this app claims to ship, so a regression that strips them fails the Go
