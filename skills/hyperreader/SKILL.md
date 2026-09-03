@@ -1,6 +1,6 @@
 ---
 name: hyperreader
-description: "Generate a Tailwind-based HTML page following the Booking Pages design ruleset (flat design, dark theme) and send it to the running HyperReader server via the send_html MCP tool. Use when the user wants to view, publish, send, or update an HTML page, report, or artifact in HyperReader — including code review pages that show each change as a syntax-highlighted diff with space for reviewer analysis."
+description: "Render and open a self-contained Tailwind HTML page in HyperReader. Use for HyperReader page or code-review artifact requests."
 metadata:
   tags:
     - html-artifacts
